@@ -25,6 +25,9 @@ their own.
 `AGENTS.md` is canonical and `AGENTS.ru.md` is the Russian copy. `CLAUDE.md` is a
 symlink to `AGENTS.md`, which is the convention the rules themselves prescribe.
 
+[`templates/plan.md`](templates/plan.md) is the shape a work plan takes, so that an
+agent follows one structure instead of inventing a new one each time.
+
 ## Install
 
 ```bash

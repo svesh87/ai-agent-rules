@@ -136,6 +136,14 @@ and that local rule then wins silently.
 
 - **[default]** Non-trivial work starts with a draft plan marked "draft, awaiting
   the owner's approval". Execute only on an explicit instruction.
+- A plan is written in the language of the chat rather than the repository: the
+  owner is the one who reads it, and it never reaches git. This is the one
+  exception to the rule about the language of files.
+- The shape of a plan comes from the template in the rules repository. It exists in
+  both languages, `templates/plan.md` and `templates/plan.ru.md`; take the copy in
+  the language of the plan itself. `readlink -f` on the entry point
+  (`~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md`) gives the path. Do not invent a
+  structure and do not copy one from another repository.
 - **[hard]** Genuine forks (architecture, scope, external configuration) go to the
   owner in chat *before* the plan is finalised, and their answers are written into
   the plan as settled decisions. Do not add a "questions" section to a plan.
@@ -182,6 +190,13 @@ One convention for every repository, whatever the repository itself says.
   old) by different models. Superseded files move to `tmp/old/` and the current
   plan stays until the next one appears. **[hard]** Leave other models' audits
   alone.
+- **[hard]** "Save this to the TODO" means `tmp/TODO.md`, not a file at the root of
+  the repository: it is a working note, not a project document. Where the
+  repository already has a committed TODO, ask which of the two to write to instead
+  of deciding silently.
+- When starting work in a repository, look into `tmp/TODO.md` and say what is still
+  open there. A note nobody remembers does nothing. Keep the reminder to one line
+  and do not recite the file.
 - `tmp/CONTEXT.md` holds a snapshot of the current state of the work rather than a
   log: what is being done now, which decisions were taken and why, what is still
   open, where the raw measurement data is, and the next step. It is rewritten at

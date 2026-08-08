@@ -24,6 +24,9 @@ Claude Code читает `~/.claude/CLAUDE.md`, Codex читает `~/.codex/AGE
 Канонический документ — `AGENTS.md`, `AGENTS.ru.md` рядом с ним русская копия.
 `CLAUDE.md` — симлинк на `AGENTS.md`, как и предписывают сами правила.
 
+[`templates/plan.ru.md`](templates/plan.ru.md) задаёт форму плана работ, чтобы агент
+следовал одной структуре, а не придумывал её заново каждый раз.
+
 ## Установка
 
 ```bash
