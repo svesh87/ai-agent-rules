@@ -1,0 +1,2 @@
+This skill installs this repository, so it is only linked inside it, never globally.
+install.sh and scripts/doctor.sh skip any skill directory containing this marker.

@@ -1,0 +1,95 @@
+{
+  "SessionStart": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/session-start.sh",
+          "timeout": 30
+        }
+      ]
+    }
+  ],
+  "UserPromptSubmit": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/prompt-nudge.sh",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
+  "PreToolUse": [
+    {
+      "matcher": "Bash",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/guard-shell-edit.sh",
+          "timeout": 10
+        },
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/guard-destructive.sh",
+          "timeout": 10
+        }
+      ]
+    },
+    {
+      "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/guard-write-scope.sh",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "Bash",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/note-gates.sh",
+          "timeout": 10
+        }
+      ]
+    },
+    {
+      "matcher": "Edit|Write|MultiEdit",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/prose-check.sh",
+          "timeout": 15
+        }
+      ]
+    }
+  ],
+  "PreCompact": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/pre-compact.sh",
+          "timeout": 10
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/stop-gates.sh",
+          "timeout": 15
+        }
+      ]
+    }
+  ]
+}
