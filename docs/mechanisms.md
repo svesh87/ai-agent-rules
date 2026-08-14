@@ -168,21 +168,10 @@ in Codex Settings; interfaces that expose `/hooks` use it to open the same contr
 acts on — the repository category, what is open in `tmp/TODO.md`, the current plan, and
 the local rules file for the tool that cannot read it. Things to do go to the queue.
 
-Four states here have that shape: `rules-install` when the classifier profile is missing
+Three states here have that shape: `rules-install` when the classifier profile is missing
 or incomplete, `new-repo` when a repository that may have rules has none,
 `context-snapshot` when compaction is imminent, the last one through `PreCompact`, which
-already fires at the moment it matters, and how to talk.
-
-How to talk is the clearest case of the ambient-trigger problem, because the rule was in
-the always-loaded file from the beginning and still did not happen. Two rules are decided
-before the first sentence: the chat is in Russian, and where the `pohuy` skill is installed
-its register goes to `lite`. Measured across three sessions on this machine: the register
-was never switched until the owner asked for it by name, twice out of three times in those
-words, and in the third session the first line came out in English before the rest of the
-session was Russian. Nothing announced the skill, and nothing announced the moment. The
-queue now carries one line about both, filed by `SessionStart` when a `pohuy` skill is
-present in the agent's own tree, which is where a plugin lives. On a machine without the
-skill there is nothing to switch and no line.
+already fires at the moment it matters.
 
 ## Where the names lie
 

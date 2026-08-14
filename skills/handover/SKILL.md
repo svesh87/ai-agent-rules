@@ -64,9 +64,7 @@ If the pass touched code, rerun the gates in full.
 Check your own text for the marks of machine-generated writing: an em dash where a
 comma or a colon would do, "not just X, but Y", triples for the symmetry of it, "it is
 important to note", "in conclusion", a closing paragraph that summarises and adds
-nothing, marketing vocabulary, emoji in headings, bold every other sentence. Nothing
-written into a file carries profanity or conversational licence, whatever the chat
-sounds like.
+nothing, marketing vocabulary, emoji in headings, bold every other sentence.
 
 ## Reporting
 

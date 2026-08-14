@@ -460,32 +460,6 @@ else
     FAIL=$((FAIL + 1)); echo "FAIL  the sweep took the wrong files, or none"
 fi
 
-echo "== the chat register is switched by a nudge, not by hoping"
-# The register and the language of the chat are decided before the first sentence, so the
-# instruction has to arrive before it. The skill is a plugin living in the agent's own tree,
-# which is why the check is against HOME rather than anything in this repository, and why a
-# machine without the skill must get no line about it.
-REG_CACHE="$WORK/cache-register"
-REG_DIR="$REG_CACHE/agent-rules/nudge"
-mkdir -p "$REG_DIR" "$WORK/home-with-skill/.claude/skills/pohuy" "$WORK/home-bare"
-: > "$REG_DIR/.delivery-claude-enabled"
-printf '{"session_id":"selftest-register","hook_event_name":"SessionStart","cwd":"%s"}' "$R" |
-    CLAUDECODE=1 HOME="$WORK/home-with-skill" XDG_CACHE_HOME="$REG_CACHE" XDG_CONFIG_HOME="$WORK/no-profile" \
-    "$HERE/session-start.sh" >/dev/null 2>&1
-if grep -q 'pohuy' "$REG_DIR/selftest-register" 2>/dev/null; then
-    PASS=$((PASS + 1))
-else
-    FAIL=$((FAIL + 1)); echo "FAIL  the register nudge was not filed where the skill is installed"
-fi
-printf '{"session_id":"selftest-no-register","hook_event_name":"SessionStart","cwd":"%s"}' "$R" |
-    CLAUDECODE=1 HOME="$WORK/home-bare" XDG_CACHE_HOME="$REG_CACHE" XDG_CONFIG_HOME="$WORK/no-profile" \
-    "$HERE/session-start.sh" >/dev/null 2>&1
-if grep -q 'pohuy' "$REG_DIR/selftest-no-register" 2>/dev/null; then
-    FAIL=$((FAIL + 1)); echo "FAIL  the register nudge was filed on a machine without the skill"
-else
-    PASS=$((PASS + 1))
-fi
-
 echo "== Codex delivery readiness includes hook trust"
 if command -v python3 >/dev/null 2>&1; then
     FAKE_BIN="$WORK/fake-codex-bin"

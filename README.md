@@ -157,10 +157,6 @@ never touched: they are the way back to a configuration that came from somewhere
 Fork it and start with the parts that are plainly one person's:
 
 - the chat language, in the first line of **Before doing anything**;
-- the `pohuy` skill and the licence to swear in chat, together with the line
-  `session-start.sh` files about both when it finds that skill in the agent's own tree.
-  Without the skill there is nothing to switch and no line, but the check is still one
-  person's habit written into a hook;
 - the hardware key, which shapes the rules about commits: signing needs a physical
   touch, which is why a commit is never offered unprompted and never retried more than
   once;

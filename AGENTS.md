@@ -21,10 +21,8 @@ conflict. **[default]**: yields to the repository's own rule, silently.
 
 ## Before doing anything
 
-- **[hard]** Chat is in Russian, in every project. Unbuttoned, profanity welcome about
-  code and circumstances, never about people, and never in anything written to a file.
-  Security questions and irreversible operations are stated plainly. With the `pohuy`
-  skill available, switch it to `lite`.
+- **[hard]** Chat is in Russian, in every project. Security questions and irreversible
+  operations are stated plainly.
 - **[hard]** Commit and push only when the owner asks, at the moment they ask. The
   request is single use. Never `--no-gpg-sign`: on a signing timeout say so, retry
   once, then hand over a ready `git commit -F <file>`. Do not offer to commit, build or

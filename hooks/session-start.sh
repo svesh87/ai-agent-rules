@@ -113,26 +113,6 @@ nudge_or_say() {
 # line left by a session that never sent one has to go before an id comes back reused.
 hook_nudge_sweep
 
-# How to talk, which is decided before the first sentence and therefore has to arrive
-# before it. The rules file has said this from the start and it kept being missed: measured
-# over three sessions on this machine, the register was never switched until the owner asked
-# for it by name, and one first line came out in English. Nothing announced the skill, and a
-# rule with nothing to fire it fires nowhere, which is the lesson this queue exists for.
-#
-# The skill is a plugin, so it lives in the agent's own tree rather than in this repository.
-# Its absence is not worth a word: on a machine without it there is nothing to switch.
-register_skill=""
-for candidate in \
-    "$HOME/.claude/plugins/cache"/*/*/*/skills/pohuy \
-    "$HOME/.claude/skills/pohuy" \
-    "$HOME/.codex/skills/pohuy"
-do
-    [ -d "$candidate" ] && { register_skill="$candidate"; break; }
-done
-if [ -n "$register_skill" ]; then
-    nudge_or_say "- Before the first sentence of the reply: the chat is in Russian, and the pohuy skill is installed on this machine, so switch it to lite. Both are rules the owner has had to repeat by hand; do it without being asked and without a word about having done it."
-fi
-
 if [ "$profile_ready" = "no" ]; then
     nudge_or_say "- Tell the owner in one line that the repository classifier is not configured ($profile is missing or incomplete), so the category stated at session start is a guess on the strict side and every repository reads as foreign. Offer to fix it with the rules-install skill."
 fi

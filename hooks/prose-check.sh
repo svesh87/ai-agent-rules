@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# PostToolUse on a document: the marks of machine-generated text, and profanity in
-# files.
+# PostToolUse on a document: the marks of machine-generated text.
 #
-# The canon bans both in anything that lands in a file, including commit messages,
-# and asks the agent to check its own text before handing it over. Checking your own
-# prose is exactly the kind of promise that survives two paragraphs and then quietly
-# stops happening, so a grep does it instead.
+# The canon asks the agent to check its own text before handing it over. Checking your
+# own prose is exactly the kind of promise that survives two paragraphs and then
+# quietly stops happening, so a grep does it instead.
 #
 # Code fences and backtick spans are stripped before checking, and that is not a
 # convenience: the rules file has to quote the very markers it bans, and so does the
@@ -60,17 +58,6 @@ n="$(hits '\b(delve|leverage|robust|seamless|deep dive|game.changer|unlock the p
 
 n="$(printf '%s' "$STRIPPED" | grep -cE '^#+ .*[😀-🿿🚀-🛿☀-⛿✀-➿]' 2>/dev/null || printf 0)"
 [ "$n" -gt 0 ] 2>/dev/null && note "$n heading(s) with an emoji"
-
-# Profanity. Stems only, and only for files: the canon welcomes it in chat and bans
-# it in anything written down.
-#
-# Two of the stems need a boundary on the left, because they sit inside ordinary words:
-# `ослаблять` and `расслабляться` contain the first, `барсука` ends with the second. The
-# canonical Russian rules file was being reported as profane over the word `ослаблять` in
-# its own paragraph about the gates. No boundary on the right for the first one, or the
-# real forms with a suffix stop matching.
-n="$(hits '(^|[^а-яёa-z])(бля|сука\b)|(хуй|хуё|хуе|пизд|ебан|ебат|ёбан|заеб|ъеб|f+u+c+k|shit\b|bullshit)')"
-[ "$n" -gt 0 ] 2>/dev/null && note "$n line(s) with profanity: chat allows it, files do not"
 
 [ -n "$FOUND" ] || hook_allow
 
