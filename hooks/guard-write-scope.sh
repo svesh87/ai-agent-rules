@@ -102,6 +102,54 @@ case "$ABS" in
     /tmp/*|"${TMPDIR:-/nonexistent}"/*) hook_allow ;;
 esac
 
+# The agent's own memory: allowed, because it is not the operator's file.
+#
+# The harness keeps a session's memory in `~/.claude/projects/<slug>/memory/`, and every
+# write there landed on the ask below. The log has the evidence across four projects, always
+# the same two files, `MEMORY.md` and one note beside it. At the keyboard that costs a
+# confirmation; with nobody at the keyboard, which is a subagent or a session left to run,
+# there is nothing to answer the question with and the write stalls mid-task.
+#
+# The rule this exempts is about the operator's files, and memory is not one: the agent
+# created it, nothing else reads it, and it is outside every repository by the harness's
+# design rather than by an agent wandering off. The whole `projects/*/memory/` tree goes in,
+# not the slug for this directory alone, because that slug is an undocumented detail of the
+# harness — a dot in a path, a worktree or a session opened in a subdirectory all change it,
+# and a near miss brings the stall back.
+#
+# Deliberately narrower than the directory above it. `projects/<slug>/` also holds the
+# transcripts and the todo state, which the agent has no business editing, so the exemption
+# stops at `memory/`.
+#
+# Codex keeps its memory in one directory for the whole machine, and there the same width
+# would be wrong. `~/.codex/memories/` is a git repository holding the consolidated memory,
+# its summaries and the rollout summaries, all of which the harness writes for itself. What
+# an agent writes on request is a note under `extensions/ad_hoc/notes/`, so that is all that
+# is exempt; the name is not taken on trust, it is the path in the `codex` binary. Its
+# `instructions.md` next door stays behind the ask, because that file is the extension's own
+# configuration rather than a note.
+#
+# CODEX_HOME moves that directory, and install.sh already honours it, so this reads the same
+# variable rather than assuming `~/.codex`.
+#
+# The bases are resolved for the same reason ABS is: a comparison between a resolved path and
+# an unresolved pattern is a string comparison wearing a boundary's clothes, and a home
+# directory reached through a symlink would miss and stall.
+#
+# All of it sits after the paths are resolved, which is what keeps it from becoming a way
+# out: a symlink or a `..` inside either directory that leads anywhere else no longer matches
+# the pattern by the time these lines run, and falls through to the ask.
+MEM_CLAUDE="${HOME:-/nonexistent}/.claude/projects"
+MEM_CODEX="${CODEX_HOME:-${HOME:-/nonexistent}/.codex}/memories/extensions/ad_hoc/notes"
+if command -v realpath >/dev/null 2>&1; then
+    MEM_CLAUDE="$(realpath -m "$MEM_CLAUDE" 2>/dev/null || printf '%s' "$MEM_CLAUDE")"
+    MEM_CODEX="$(realpath -m "$MEM_CODEX" 2>/dev/null || printf '%s' "$MEM_CODEX")"
+fi
+case "$ABS" in
+    "$MEM_CLAUDE"/*/memory/*) hook_allow ;;
+    "$MEM_CODEX"/*) hook_allow ;;
+esac
+
 # Everything else is outside the work tree: the operator's own files, another
 # repository, the home directory. Opened on request, at the named path, one act at a
 # time.

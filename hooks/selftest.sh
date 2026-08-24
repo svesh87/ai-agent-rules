@@ -198,6 +198,39 @@ check_ask "a path outside any repository" guard-write-scope.sh "$(edit_payload "
 check_ask "another repository"           guard-write-scope.sh "$(edit_payload "$R" "$WORK/other/AGENTS.md" Write)"
 check 0 "system temporary directory"     guard-write-scope.sh "$(edit_payload "$R" "/tmp/scratch.md" Write)"
 
+echo "== the agent's own memory is written without a question"
+# Every memory write used to land on the ask above, which is a confirmation at the keyboard
+# and a stalled task without one. HOME and CODEX_HOME move for this block so the checks say
+# the same thing on a machine whose home is somewhere unusual, and so the cases beside the
+# two memory directories are judged rather than exempted by a throwaway home under /tmp.
+#
+# The two agents keep memory differently and the exemption is a different width for each, so
+# both widths are checked here rather than one standing in for the other. Claude has a memory
+# directory per project; Codex has one directory for the machine, of which only the ad-hoc
+# notes are the agent's to write.
+REAL_HOME="$HOME"
+HOME="$WORK/home"; export HOME
+MEM="$HOME/.claude/projects/-fixture-slug/memory"
+check_silent "the index in this project's memory"  guard-write-scope.sh "$(edit_payload "$R" "$MEM/MEMORY.md" Write)"
+check_silent "a note in another project's memory"  guard-write-scope.sh "$(edit_payload "$R" "$HOME/.claude/projects/-other-slug/memory/fact.md" Write)"
+check_ask "the session state beside memory/"      guard-write-scope.sh "$(edit_payload "$R" "$HOME/.claude/projects/-fixture-slug/todos/state.json" Write)"
+check_ask "dots out of memory/"                   guard-write-scope.sh "$(edit_payload "$R" "$MEM/../../../../../../../../..$OUTSIDE/SECRET" Write)"
+
+NOTES="$HOME/.codex/memories/extensions/ad_hoc/notes"
+check_silent "an ad-hoc note, CODEX_HOME unset"    guard-write-scope.sh "$(edit_payload "$R" "$NOTES/2026-08-24-note.md" Write)"
+check_ask "the consolidated Codex memory"         guard-write-scope.sh "$(edit_payload "$R" "$HOME/.codex/memories/MEMORY.md" Write)"
+check_ask "a rollout summary"                     guard-write-scope.sh "$(edit_payload "$R" "$HOME/.codex/memories/rollout_summaries/s.md" Write)"
+check_ask "the ad-hoc extension's instructions"   guard-write-scope.sh "$(edit_payload "$R" "$HOME/.codex/memories/extensions/ad_hoc/instructions.md" Write)"
+check_ask "dots out of the notes directory"       guard-write-scope.sh "$(edit_payload "$R" "$NOTES/../../../../../../../../..$OUTSIDE/SECRET" Write)"
+
+# CODEX_HOME moves the whole directory, and a hook that ignored it would send every note in
+# such a setup to the ask.
+CODEX_HOME="$WORK/codex-elsewhere"; export CODEX_HOME
+check_silent "a note under a moved CODEX_HOME"     guard-write-scope.sh "$(edit_payload "$R" "$CODEX_HOME/memories/extensions/ad_hoc/notes/n.md" Write)"
+check_ask "the old path once CODEX_HOME moved"    guard-write-scope.sh "$(edit_payload "$R" "$NOTES/n.md" Write)"
+unset CODEX_HOME
+HOME="$REAL_HOME"; export HOME
+
 echo "== the boundary is compared as paths, not as strings"
 # Four of these five shapes used to pass as a silent allow. The clearest was the same file
 # refused when named absolutely and allowed when named with enough dots, so leaving the tree
