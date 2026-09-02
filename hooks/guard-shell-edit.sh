@@ -42,6 +42,10 @@ fi
 
 # Scratch space is exempt: generating a file with a script is legitimate work, and
 # nothing under tmp/ or the system temporary directory is ever reviewed as a diff.
+#
+# The `tmp/` prefixes cover the whole layout under it — work/, ideas/, archive/, old/ —
+# because the match is on the directory and not on what follows it. `tmp/old/` is kept
+# as its own pattern only for a command that names it without a separator in front.
 case "$CMD" in
     *" tmp/"*|*"/tmp/"*|*"tmp/old/"*) hook_allow ;;
 esac

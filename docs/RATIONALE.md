@@ -49,6 +49,20 @@ The plan lives in `tmp/` and not in git because it is correspondence about work,
 document of the project. It is written in the language of the chat for the same reason:
 the owner is its only reader.
 
+There are two approvals rather than one because they answer different questions and fail
+differently. A plan approved on its steps carries an unstated idea of what "done" means,
+and the disagreement about that surfaces after the work rather than before it. So the
+spec is approved first — what is being built, why, how done is measured, what counts as
+delivered — and the plan is written against it. The cost is one extra round trip on
+anything larger than an edit, which is why the size of the work decides the ceremony:
+two lines get neither document.
+
+Declaring the deliverables in the spec, secondary ones included, exists for a specific
+failure. Work that is not the task itself loses to the task every time: a skill to be
+filled in along the way, a document, a note in the rules. Named in the spec, it is
+something handover can refuse to sign off on; left in the conversation, it is something
+the owner has to remember, and the whole point of these rules is to remember less.
+
 ## Why `tmp/`
 
 Two properties, both about loss. Findings that exist only in a conversation are gone
@@ -61,9 +75,34 @@ requirement to whoever reads it next. The machine-wide ignore does that job in e
 repository at once, including ones that do not belong to the operator, which is why the
 patterns live there rather than in each `.gitignore`.
 
-`tmp/CONTEXT.md` is a snapshot rather than a log because a log is read by nobody. What
-the next session needs is the current state and the next step, and the previous state
-belongs in `tmp/old/` where it does not compete for attention.
+The three genres came later, from what the directory actually looked like after a few
+months: thirteen to twenty-one files loose in the root of seven repositories, up to
+forty-one in the archive, plans and snapshots and probe binaries and screenshots in one
+heap. The problem was not tidiness. Nothing recorded which task a file belonged to, so a
+plan and a snapshot written the same evening about the same work could only be connected
+by opening both, and nothing recorded whether a file was finished, so a rejected proposal
+and a live one looked identical. A file that cannot be attributed cannot be found later,
+and a file with no end state cannot be thrown away — which is how cleaning up became a
+thing the owner had to ask for.
+
+Hence: a task is a folder, so everything about it stays together and archives in one
+move; an idea is a file with a status, so a proposal has somewhere to live and two ways
+to end; an artefact belongs to one of those and never to the root. The tray is separate
+from all three because catching a thought has to cost nothing, and a tray item with a
+body is an idea that has not been moved yet.
+
+Nothing here is converted from the old layout. A plan from last month has no spec, and
+writing one for it means inventing requirements the work never had; a dead document
+dressed as a current one is worse than a heap that honestly looks like a heap.
+
+The state of the work is split in two for a reason that is about cost, not tidiness.
+There used to be one snapshot per repository, rewritten in full each time and rotated
+into `tmp/old/` with a timestamp. Rewriting it was expensive, so it was deferred, and
+the deferral routinely ran past the end of the context window — the one place where
+deferring loses everything. So `journal.md` is appended to and never rewritten, which
+makes it cheap enough to actually happen, and `context.md` is rewritten once at
+handover. Both live in the task's folder, which also ends two sessions in one repository
+overwriting each other's state.
 
 ## Why signing and the hardware key get their own rules
 

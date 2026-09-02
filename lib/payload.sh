@@ -127,9 +127,43 @@ hook_command() {
     hook_field '.tool_input.command // .tool_input.script // .tool_input.cmd'
 }
 
-# The target path of a file-editing tool call.
+# The target path of a file-editing tool call, where the payload names one directly.
 hook_path() {
     hook_field '.tool_input.file_path // .tool_input.path // .tool_input.notebook_path'
+}
+
+# Every path a file-editing call touches, one per line.
+#
+# Claude Code names the file in `tool_input.file_path` and one call touches one file.
+# Codex's `apply_patch` does neither: measured on 0.147.0, the whole patch arrives in
+# `tool_input.command` with no path field at all, and one patch can create, rewrite,
+# move and delete several files at once. A boundary check reading only `file_path` saw
+# nothing there and allowed the call — a probe wrote a file outside every work tree,
+# silently, and left no line in the hook log. The selftest had a case for `apply_patch`
+# and it passed, because the fixture put the path in `file_path`: a format nobody
+# writes in, this time inside our own test.
+#
+# The headers are matched at the start of a line. Patch body lines carry a `+`, `-` or
+# space in the first column, so a line beginning with `***` is always a header and
+# never content that happens to look like one.
+#
+# Empty output means the paths could not be worked out, which callers must treat as a
+# reason to ask rather than as permission. An editing tool whose target cannot be read
+# is precisely the case a boundary exists for.
+hook_paths() {
+    local one patch
+    one="$(hook_path)"
+    if [ -n "$one" ]; then
+        printf '%s\n' "$one"
+        return 0
+    fi
+    patch="$(hook_command)"
+    [ -n "$patch" ] || return 0
+    printf '%s\n' "$patch" | sed -nE '
+        s/\r$//
+        s/^\*\*\* (Add|Update|Delete) File: (.+)$/\2/p
+        s/^\*\*\* Move to: (.+)$/\1/p' |
+        sed -E 's/[[:space:]]+$//' | grep -v '^$'
 }
 
 # The directory the session runs in. Falls back to $PWD, which a hook inherits.

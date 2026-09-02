@@ -1,21 +1,25 @@
 ---
 name: audit
-description: Audit a repository or a change, or turn someone else's audit into work. Triggers: "сделай аудит", "проверь код", a review of the whole thing, combining findings from several models. Covers naming, rotation, what counts as a finding.
+description: Audit a repository or a change, or turn someone else's audit into work. Triggers: "сделай аудит", "проверь код", a review of the whole thing, combining findings from several models.
 ---
 
 # Audits
 
-## Where they go
+An audit is an idea with `type: audit`, so its filing, its statuses and its end states
+are the `idea` skill's. Read that one for where the file goes and what its frontmatter
+must carry. Here is only what is specific to auditing.
 
-An audit goes to `tmp/AUDIT_<AI_MODEL>_<YYYY-MM-DD_HH-MM-SS>.md`, with the model that
-wrote it in the name. Before writing a new one, move previous audits **from the same
-model** to `tmp/old/`.
+## Filing
+
+`tmp/ideas/<YYYY-MM-DD>-<slug>.md` with `type: audit` and `model:` naming the model
+that wrote it. Before writing a new one, move previous audits **from the same model**
+to `tmp/archive/<YYYY-MM>/`.
 
 Leave other models' audits alone. They are evidence, not clutter.
 
-A combined audit is assembled into `tmp/AUDIT_SUM_<date_time>.md` from recent audits by
-different models, less than an hour old, so they describe the same code. Previous
-`AUDIT_SUM_*` files move to `tmp/old/`.
+A combined audit is assembled from recent audits by different models, less than an hour
+old, so they describe the same code. It is an idea like any other, with `model:` naming
+the models it merges.
 
 ## What an audit looks for
 
@@ -36,10 +40,13 @@ documentation plus its eventual removal.
 
 ## Turning someone else's audit into work
 
-Every finding is checked against the code before it enters a plan. An audit is an
-outside remark, and outside remarks are not copied into plans unexamined. A finding
-that does not reproduce is written off explicitly, with the reason, rather than
+Every finding is checked against the code before it enters a spec. An audit is an
+outside remark, and outside remarks are not copied into specs or plans unexamined. A
+finding that does not reproduce is written off explicitly, with the reason, rather than
 silently dropped.
+
+An accepted audit closes like any idea: `status: accepted` with the task it became, or
+`status: rejected` with the reason in one line.
 
 ## The live state outranks the documentation
 

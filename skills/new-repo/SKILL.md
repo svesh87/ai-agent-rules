@@ -27,8 +27,12 @@ CLAUDE.md            symlink to AGENTS.md, never a regular file
 AGENTS.local.md      this machine's rules, never committed
 CLAUDE.local.md      symlink to AGENTS.local.md
 README.md            what this is, for a human
-tmp/                 plans, drafts, audits, snapshots. Never committed
-tmp/old/             superseded drafts
+tmp/                 tasks, ideas, drafts, artefacts. Never committed
+tmp/TODO.md          the intake tray: one line and a date, nothing else touched
+tmp/work/            one folder per task, <YYYY-MM-DD>-<slug>
+tmp/ideas/           proposals for review, one file each, with a status
+tmp/archive/         closed work, by month, whole folders
+tmp/old/             whatever predates this layout. Not a source of requirements
 skills/<name>/       skills specific to this repository, if any
 .claude/skills/<name> -> ../../skills/<name>
 .codex/skills/<name>  -> ../../skills/<name>

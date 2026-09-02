@@ -66,6 +66,11 @@
           "type": "command",
           "command": "__REPO__/hooks/prose-check.sh",
           "timeout": 15
+        },
+        {
+          "type": "command",
+          "command": "__REPO__/hooks/note-bookkeeping.sh",
+          "timeout": 10
         }
       ]
     }

@@ -31,6 +31,15 @@ edit_payload() {
         "$1" "$3" "$(printf '%s' "$2" | jq -Rs .)" "$extra"
 }
 
+# A payload with a Codex apply_patch: the whole patch in tool_input.command and no path
+# field anywhere. This is the shape that went unchecked for as long as the fixture used
+# the Claude one — a case named `apply_patch` that put the path in `file_path` passed
+# every run and proved nothing about the tool it was named after.
+patch_payload() {
+    printf '{"session_id":"selftest","hook_event_name":"PreToolUse","cwd":"%s","tool_name":"apply_patch","tool_input":{"command":%s}}' \
+        "$1" "$(printf '%s' "$2" | jq -Rs .)"
+}
+
 # check <expected 0|2> <name> <hook> <payload>
 check() {
     local want="$1" name="$2" hook="$3" payload="$4" got
@@ -153,7 +162,12 @@ echo "== the two properties that keep a broken hook fixable"
 check_silent "Edit inside the work tree is allowed"        guard-write-scope.sh "$(edit_payload "$R" "$R/src/main.rs" Edit)"
 check_silent "Write inside the work tree is allowed"       guard-write-scope.sh "$(edit_payload "$R" "$R/README.md" Write)"
 check_silent "Edit of a hook script itself is allowed"     guard-write-scope.sh "$(edit_payload "$R" "$R/hooks/guard-shell-edit.sh" Edit)"
-check_silent "apply_patch inside the work tree is allowed" guard-write-scope.sh "$(edit_payload "$R" "$R/src/main.rs" apply_patch)"
+check_silent "apply_patch inside the work tree is allowed" guard-write-scope.sh "$(patch_payload "$R" "*** Begin Patch
+*** Update File: src/main.rs
+@@
+-fn main() {}
++fn main() { }
+*** End Patch")"
 
 echo "== an unparseable or empty payload is allowed, never denied"
 for h in guard-shell-edit.sh guard-destructive.sh guard-write-scope.sh prose-check.sh note-gates.sh stop-gates.sh session-start.sh pre-compact.sh prompt-nudge.sh; do
@@ -222,6 +236,41 @@ echo "== writing outside the work tree"
 check_ask "a path outside any repository" guard-write-scope.sh "$(edit_payload "$R" "$OUTSIDE/rc" Write)"
 check_ask "another repository"           guard-write-scope.sh "$(edit_payload "$R" "$WORK/other/AGENTS.md" Write)"
 check 0 "system temporary directory"     guard-write-scope.sh "$(edit_payload "$R" "/tmp/scratch.md" Write)"
+
+# A patch is judged path by path, and it is the shape Codex actually sends. Before this,
+# a probe of the first case wrote outside every work tree, silently, with nothing in the
+# hook log: the hook read `file_path`, found nothing, and allowed the call.
+check_ask "a patch reaching outside the tree" guard-write-scope.sh "$(patch_payload "$R" "*** Begin Patch
+*** Add File: $OUTSIDE/rc
++owned
+*** End Patch")"
+check_ask "one outside path among legitimate ones" guard-write-scope.sh "$(patch_payload "$R" "*** Begin Patch
+*** Update File: src/main.rs
+@@
+-a
++b
+*** Add File: $OUTSIDE/rc
++owned
+*** End Patch")"
+check_ask "a patch moving a file out of the tree" guard-write-scope.sh "$(patch_payload "$R" "*** Begin Patch
+*** Update File: src/main.rs
+*** Move to: $OUTSIDE/main.rs
+*** End Patch")"
+check_ask "a patch deleting a file outside the tree" guard-write-scope.sh "$(patch_payload "$R" "*** Begin Patch
+*** Delete File: $OUTSIDE/rc
+*** End Patch")"
+# A header-looking line inside the patch body carries a `+`, so it is content and not a
+# path. If it were read as one, a patch could name any file it liked in a diff line.
+check_silent "a header-shaped line in the body is content" guard-write-scope.sh "$(patch_payload "$R" "*** Begin Patch
+*** Update File: src/main.rs
+@@
+-a
++*** Add File: $OUTSIDE/rc
+*** End Patch")"
+# An editing call whose path cannot be read at all fails closed. This is the direction
+# that matters: the old code allowed it.
+check_ask "an editing call with no readable path" guard-write-scope.sh \
+    "$(printf '{"session_id":"selftest","hook_event_name":"PreToolUse","cwd":"%s","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\\n*** End Patch"}}' "$R")"
 
 echo "== the agent's own memory is written without a question"
 # Every memory write used to land on the ask above, which is a confirmation at the keyboard
@@ -592,6 +641,191 @@ if [ -z "$(stop_gates_says "$QUIET")" ]; then
 else
     FAIL=$((FAIL + 1)); echo "FAIL  a change confined to tmp/ drew a reminder"
 fi
+
+echo "== the tray is read by the checkbox, and its age is read from the line"
+# The counter this replaces read `- [ ]` in files that contained none: five repositories,
+# zero checkboxes, so only its fallback branch had ever run. These cases pin the format
+# the hook now depends on, in both directions — a tray that parses, and a line whose
+# missing date makes its age unknowable.
+TRAY_CACHE="$WORK/cache-tray"
+mkdir -p "$TRAY_CACHE/agent-rules/nudge"
+: > "$TRAY_CACHE/agent-rules/nudge/.delivery-enabled"
+{
+    printf '# TODO\n\n## Open\n\n'
+    printf -- '- [ ] 2026-09-01 something fresh\n'
+    printf -- '- [ ] 2020-01-01 something ancient\n'
+    printf -- '- [ ] no date at all here\n'
+    printf -- '- [>] 2026-09-01 waiting on the owner\n'
+    printf -- '- [x] 2026-08-01 done -> archive/2026-08/thing/\n'
+} > "$R/tmp/TODO.md"
+TRAY_BANNER="$(printf '{"session_id":"selftest-tray","hook_event_name":"SessionStart","cwd":"%s"}' "$R" |
+    XDG_CACHE_HOME="$TRAY_CACHE" XDG_CONFIG_HOME="$WORK/no-profile" \
+    "$HERE/session-start.sh" 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext')"
+if printf '%s' "$TRAY_BANNER" | grep -q '3 open, 1 waiting on the owner'; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  the tray counts did not come out as 3 open and 1 owner item"
+fi
+TRAY_QUEUE="$TRAY_CACHE/agent-rules/nudge/selftest-tray"
+if grep -q 'open for more than' "$TRAY_QUEUE" 2>/dev/null; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  an item open since 2020 drew no nudge"
+fi
+if grep -q 'no date after the checkbox' "$TRAY_QUEUE" 2>/dev/null; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  an undated open item drew no nudge"
+fi
+rm -f "$R/tmp/TODO.md"
+
+echo "== a task is claimed by writing into it, and the debt on its journal is measured"
+# The claim is what lets three hooks find the same task, and the debt is the mechanism
+# that replaces "save the state before compaction", a rule that fired when it could no
+# longer be obeyed. The threshold is reached by seeding the counter rather than by making
+# forty calls: the arithmetic is what is under test, and the state file's format is ours.
+DEBT_CACHE="$WORK/cache-debt"
+DEBT_SESSION="$DEBT_CACHE/agent-rules/session"
+mkdir -p "$DEBT_SESSION"
+TASK="$R/tmp/work/2026-09-02-probe"
+mkdir -p "$TASK"
+note_debt() {
+    printf '{"session_id":"selftest-debt","hook_event_name":"PostToolUse","cwd":"%s","tool_name":"Write","tool_input":{"file_path":%s}}' \
+        "$R" "$(printf '%s' "$1" | jq -Rs .)" |
+        XDG_CACHE_HOME="$DEBT_CACHE" XDG_CONFIG_HOME="$WORK/no-profile" \
+        "$HERE/note-bookkeeping.sh" >/dev/null 2>&1
+}
+note_debt "$TASK/spec.md"
+if [ "$(sed -n '1p' "$TASK/.session" 2>/dev/null)" = "selftest-debt" ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  a write inside a task folder did not claim it"
+fi
+
+# The same claim through Codex's editor, which names no path in a field. Dead here until
+# the paths were read out of the patch, and dead silently: the task simply stayed
+# unclaimed and the debt was never measured in that tool.
+rm -f "$TASK/.session"
+printf '{"session_id":"selftest-patch","hook_event_name":"PostToolUse","cwd":"%s","tool_name":"apply_patch","tool_input":{"command":%s}}' \
+    "$R" "$(printf '*** Begin Patch\n*** Update File: tmp/work/2026-09-02-probe/journal.md\n@@\n+entry\n*** End Patch' | jq -Rs .)" |
+    XDG_CACHE_HOME="$DEBT_CACHE" XDG_CONFIG_HOME="$WORK/no-profile" \
+    "$HERE/note-bookkeeping.sh" >/dev/null 2>&1
+if [ "$(sed -n '1p' "$TASK/.session" 2>/dev/null)" = "selftest-patch" ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  an apply_patch inside a task folder did not claim it"
+fi
+printf 'selftest-debt\n%s\n' "$(date +%s)" > "$TASK/.session"
+
+mkdir -p "$DEBT_CACHE/agent-rules/nudge"
+: > "$DEBT_CACHE/agent-rules/nudge/.delivery-enabled"
+printf '0\n39\n0\n' > "$DEBT_SESSION/selftest-debt.debt"
+note_debt "$R/src/main.rs"
+if grep -q 'journal.md' "$DEBT_CACHE/agent-rules/nudge/selftest-debt" 2>/dev/null; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  crossing the first debt threshold queued no nudge"
+fi
+if [ "$(sed -n '3p' "$DEBT_SESSION/selftest-debt.debt")" = 1 ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  the nudged level was not recorded, so it would fire again"
+fi
+
+# Writing the journal pays the debt: the count starts over and the level is re-armed.
+printf 'entry\n' > "$TASK/journal.md"
+note_debt "$R/src/main.rs"
+if [ "$(sed -n '2p' "$DEBT_SESSION/selftest-debt.debt")" = 1 ] &&
+   [ "$(sed -n '3p' "$DEBT_SESSION/selftest-debt.debt")" = 0 ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  writing the journal did not reset the debt"
+fi
+
+# An edit with no task claimed is not a debt: it is a two-line fix or work not set up yet.
+rm -f "$DEBT_SESSION/selftest-other.debt"
+printf '{"session_id":"selftest-other","hook_event_name":"PostToolUse","cwd":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}' \
+    "$R" "$R/src/main.rs" |
+    XDG_CACHE_HOME="$DEBT_CACHE" XDG_CONFIG_HOME="$WORK/no-profile" \
+    "$HERE/note-bookkeeping.sh" >/dev/null 2>&1
+if [ ! -f "$DEBT_SESSION/selftest-other.debt" ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  an edit with no claimed task was counted as debt"
+fi
+
+echo "== a declared deliverable that was never touched is named before the turn ends"
+# The failure this catches is the one the owner had to chase by hand: the main work
+# lands, the skill it was supposed to fill in does not, and nothing says so.
+{
+    printf '# probe\n\n## Deliverables\n\n'
+    printf -- '- `skills/probe/SKILL.md` — the skill nobody filled in\n'
+    printf -- '- `src/main.rs` — touched, so it must not be reported\n'
+} > "$TASK/spec.md"
+printf 'selftest-deliv\n%s\n' "$(date +%s)" > "$TASK/.session"
+DELIV="$(printf '{"session_id":"selftest-deliv","hook_event_name":"Stop","cwd":"%s"}' "$R" |
+    XDG_CONFIG_HOME="$WORK/no-profile" XDG_CACHE_HOME="$DEBT_CACHE" \
+    "$HERE/stop-gates.sh" 2>&1 >/dev/null)"
+if printf '%s' "$DELIV" | grep -q 'skills/probe/SKILL.md'; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  an untouched declared deliverable was not named at Stop"
+fi
+if printf '%s' "$DELIV" | grep -q 'src/main.rs'; then
+    FAIL=$((FAIL + 1)); echo "FAIL  a deliverable that was touched got reported anyway"
+else
+    PASS=$((PASS + 1))
+fi
+
+# The second debt threshold reaches the end of the turn as a warning, never as a block.
+printf '0\n80\n2\n0\n' > "$DEBT_SESSION/selftest-deliv.debt"
+DEBT_STOP_OUT="$(printf '{"session_id":"selftest-deliv","hook_event_name":"Stop","cwd":"%s"}' "$R" |
+    XDG_CONFIG_HOME="$WORK/no-profile" XDG_CACHE_HOME="$DEBT_CACHE" \
+    "$HERE/stop-gates.sh" 2>&1 >/dev/null)"
+printf '{"session_id":"selftest-deliv","hook_event_name":"Stop","cwd":"%s"}' "$R" |
+    XDG_CONFIG_HOME="$WORK/no-profile" XDG_CACHE_HOME="$DEBT_CACHE" \
+    "$HERE/stop-gates.sh" >/dev/null 2>&1
+DEBT_STOP_CODE=$?
+if printf '%s' "$DEBT_STOP_OUT" | grep -q 'second threshold' && [ "$DEBT_STOP_CODE" = 0 ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  doubled debt did not warn without blocking (exit $DEBT_STOP_CODE)"
+fi
+
+# PreCompact points at the journal of the claimed task, and says it cannot write it.
+PRECOMPACT_TASK="$(printf '{"session_id":"selftest-deliv","hook_event_name":"PreCompact","cwd":"%s"}' "$R" |
+    XDG_CONFIG_HOME="$WORK/no-profile" XDG_CACHE_HOME="$DEBT_CACHE" \
+    "$HERE/pre-compact.sh" 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext')"
+if printf '%s' "$PRECOMPACT_TASK" | grep -q 'tmp/work/2026-09-02-probe'; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  PreCompact did not name the claimed task"
+fi
+
+# The scratch exemption in guard-shell-edit.sh has to reach the whole layout under tmp/,
+# or generating a task's files with a script starts asking questions.
+for sub in work/2026-09-02-probe/journal.md ideas/2026-09-02-thing.md archive/2026-09/x/plan.md; do
+    check 0 "shell writes into tmp/$sub" guard-shell-edit.sh \
+        "$(bash_payload "$R" "printf 'x\n' > tmp/$sub")"
+done
+
+echo "== the intake tray of another repository of ours is written without a question"
+# The owner types "put this in that repo's TODO" and leaves the window, so an ask there
+# waits for somebody who is not coming back. The hole is one filename in one directory at
+# a git root, and these cases are the walls around it.
+NEIGHBOUR="$WORK/neighbour"
+mkdir -p "$NEIGHBOUR/tmp" "$NEIGHBOUR/sub/tmp"
+git -C "$NEIGHBOUR" init -q 2>/dev/null
+check_allow_json "the tray of another repository of ours" guard-write-scope.sh \
+    "$(edit_payload "$R" "$NEIGHBOUR/tmp/TODO.md" Write)"
+check_ask "another file in that repository's tmp/" guard-write-scope.sh \
+    "$(edit_payload "$R" "$NEIGHBOUR/tmp/notes.md" Write)"
+check_ask "a tray-shaped path that is not at a git root" guard-write-scope.sh \
+    "$(edit_payload "$R" "$NEIGHBOUR/sub/tmp/TODO.md" Write)"
+XDG_CONFIG_HOME="$WORK/no-profile"; export XDG_CONFIG_HOME
+check_ask "the tray of a foreign checkout" guard-write-scope.sh \
+    "$(edit_payload "$R" "$FOREIGN/tmp/TODO.md" Write)"
+unset XDG_CONFIG_HOME
 
 echo "== a nudge nobody collected does not wait forever"
 # The queue is only read on a prompt, so a session that ends before sending one leaves its

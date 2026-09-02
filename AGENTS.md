@@ -79,26 +79,58 @@ was asked and where.
 
 ## `tmp/`
 
-- **[hard]** Plans, drafts, audits and trial runs live only in `tmp/` at the root of
-  the working directory, and `tmp/old/` is an archive, not a source of requirements.
+- **[hard]** Plans, drafts, research, audits and trial runs live only in `tmp/` at the
+  root of the working directory, and everything in it is one of three genres, each with
+  an owner, a date and an end state. A **task** is a folder,
+  `tmp/work/<YYYY-MM-DD>-<slug>/`. An **idea** is one file with a status,
+  `tmp/ideas/<YYYY-MM-DD>-<slug>.md`, and its end state is either a task or a rejection
+  with its reason. An **artefact** — a log, a measurement, a probe, a screenshot, a
+  built binary — lives inside a task or an idea and never in the root.
+- **[hard]** `tmp/TODO.md` is the intake tray, and "save this to the TODO" means that
+  file, never one at the root. Catching a thought costs one line and touches nothing
+  else: a date right after the checkbox, `- [ ]` open, `- [x]` closed, `- [>]` waiting
+  on the owner. An item that has grown a body becomes an idea when it is next worked on,
+  not while it is being thrown in. Where a committed TODO already exists, ask which of
+  the two.
+- **[hard]** A closed thing leaves. A task that is done goes to
+  `tmp/archive/<YYYY-MM>/` as a whole folder; an idea gets its end state written into
+  it and goes the same way; a tray item that has been dealt with stops being open.
+  Nothing is closed silently.
+- **[hard]** What was there before this layout stays in `tmp/old/`, which is an archive
+  and not a source of requirements. It is never converted into tasks: a plan from last
+  month has no spec, and reconstructing one means inventing it. Read it where it lies,
+  and if work grows out of it, copy what is needed into the new task and say where it
+  came from.
 - **[hard]** `tmp/` is not committed, and the committed part never references it: no
   paths, no mentions of files living there. Describing the convention is fine. The
   machine-wide ignore covers `tmp/`, `*.local.md` and `*.local/`; where it does not
   exist, those patterns go into the repository's `.gitignore`.
-- **[hard]** "Save this to the TODO" means `tmp/TODO.md`, never a file at the root.
-  Where a committed TODO already exists, ask which of the two.
 - **[hard]** `tmp/` does not travel with a clone. Leave other models' audits alone.
   Clean up after yourself in the system `/tmp` and leave what is not yours.
+- There is no index of `tmp/`, and one is not to be built. The layout answers what an
+  index would: the genre is the directory, the date and the subject are the name, and an
+  idea sitting in `ideas/` is open by definition, because a closed one has left.
 - Look at what is already in `tmp/` before using it: it may belong to the project, and
   then yours goes elsewhere and you ask where.
 
 ## Working
 
-- **[default]** Non-trivial work starts with a draft plan and waits for an explicit
-  instruction. **[hard]** Genuine forks go to the owner in chat before the plan is
-  finalised, and a plan has no questions section. **[hard]** The planning stage is
-  where questions belong, and there should be many: wearing the owner out during
-  preparation is cheaper than interrupting them during the work.
+- **[default]** Three sizes of work, and the size decides the ceremony. An **edit** of
+  a couple of lines starts nothing. A **task** gets a folder and two approvals. An
+  **epic** gets a roadmap over several specs, and only when the owner asks for one: a
+  roadmap passes through no check of its own, so a wrong one sends every spec under it
+  in the same wrong direction, neatly and consistently.
+- **[default]** A task is approved twice. First `spec.md`: what is being built, why,
+  how done is measured, and which deliverables count — no implementation in it. Then
+  `plan.md`, written against the approved spec: files, steps, gates. **[hard]** Genuine
+  forks go to the owner in chat before either is finalised, and neither has a questions
+  section. **[hard]** The planning stage is where questions belong, and there should be
+  many: wearing the owner out during preparation is cheaper than interrupting them
+  during the work.
+- **[hard]** Every deliverable is declared in the spec, the secondary ones included: a
+  skill to be filled in along the way, a document, a change to the rules. Work is not
+  done while a declared deliverable is untouched, and it is the spec that says so, not
+  the owner remembering.
 - **[default]** Order: code, documentation and comments, gates, status edits, then a
   consistency pass. Figures and statuses only after the gates confirm them. Comments
   get their own step with file plus anchor.
@@ -110,6 +142,13 @@ was asked and where.
 - **[default]** Before stopping for review, move into files whatever would be lost with
   the context. The measure: an agent starting tomorrow with an empty context can
   rebuild the picture.
+- **[hard]** The saving happens along the way, not at the end. `journal.md` in the task
+  folder is appended to and never rewritten, which is what makes it cheap enough to
+  actually do; `context.md` is rewritten once, at handover. A skill or a document that
+  is being filled in along the way is appended to the journal too, and edited into
+  shape at handover: editing a live document mid-task is expensive, so it gets deferred
+  until the context is gone. Compaction gives no turn in which to write anything, so
+  nothing may be left waiting for it.
 - **[default]** Ask whether the state you are defending against exists before building
   machinery for it. The live state of a system outranks its documentation. Comments
   explain constraints, not the history of edits; they name constants rather than the

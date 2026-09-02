@@ -12,7 +12,7 @@ description: Finish work before handing it back: order of edits, gates, consiste
 3. Gates.
 4. Status edits: figures and statuses only **after** the gates confirm them.
 5. Consistency pass, last.
-6. Refresh the working context (see the `context-snapshot` skill).
+6. Close the task (below).
 
 Code comments are a work item like any document, with their own step and a list of
 file plus anchor. Doc blocks and comments on constants go stale first and silently.
@@ -59,6 +59,33 @@ Minimum scope, and it is the last step:
 
 If the pass touched code, rerun the gates in full.
 
+## Closing the task
+
+Four steps, none of which the owner should have to ask for.
+
+**Every declared deliverable is checked.** The spec named them, the secondary ones
+included. A deliverable that is untouched means the work is not done, whatever the
+gates say. `hooks/stop-gates.sh` compares the paths in the spec against the working
+tree and warns, but the check belongs here regardless of whether the hook spoke.
+
+**The journal is turned into what it was raw material for.** A skill or a document
+being filled in along the way was appended to `journal.md` during the work; this is the
+focused step where it is edited into shape. Skipping it is how the accumulated notes
+stay notes.
+
+**The source is closed.** The idea this task grew from gets `status: accepted` and the
+task's name; the tray item in `tmp/TODO.md` stops being open. Nothing is closed
+silently, and a rejection carries its reason in one line.
+
+**The folder goes to the archive.** `context.md` is rewritten first (see the
+`context-snapshot` skill), then the whole of `tmp/work/<task>/` moves to
+`tmp/archive/<YYYY-MM>/`, plan and journal and probes together. The move is the whole
+bookkeeping: `tmp/work/` holding only live tasks is what makes the layout readable, and
+there is no index to update afterwards.
+
+Work the owner has not accepted yet is not archived. A plan still waiting for approval,
+or a task whose live checks are still outstanding, stays in `tmp/work/`.
+
 ## Before saying it is done
 
 Check your own text for the marks of machine-generated writing: an em dash where a
@@ -84,3 +111,7 @@ Move out of the context and into files whatever would be lost with it: decisions
 inventories, traps discovered, changes to the procedure. The measure is that an agent
 starting tomorrow with an empty context can rebuild the picture from the files. This
 means writing files, not committing.
+
+By this point most of it should already be in `journal.md`, appended as it happened. A
+handover that has to reconstruct the whole session from memory means the saving was
+deferred, which is the failure the journal exists to prevent.

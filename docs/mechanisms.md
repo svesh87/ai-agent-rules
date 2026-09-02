@@ -183,13 +183,61 @@ that changes nothing should not be starting a Codex process. Inside VS Code thos
 in Codex Settings; interfaces that expose `/hooks` use it to open the same controls.
 
 `SessionStart` keeps what it is good at: reference material the agent consults rather than
-acts on — the repository category, what is open in `tmp/TODO.md`, the current plan, and
+acts on — the repository category, what is open in `tmp/TODO.md`, the active tasks, and
 the local rules file for the tool that cannot read it. Things to do go to the queue.
 
 Three states here have that shape: `rules-install` when the classifier profile is missing
-or incomplete, `new-repo` when a repository that may have rules has none,
-`context-snapshot` when compaction is imminent, the last one through `PreCompact`, which
-already fires at the moment it matters.
+or incomplete, `new-repo` when a repository that may have rules has none, and a tray whose
+items have been open too long.
+
+**A mechanism can also fail on a format nobody writes in.** The line above about "what is
+open in `tmp/TODO.md`" was, for months, produced by counting `- [ ]` checkboxes and
+falling back to listing headings when it found none. Counted across five repositories on
+this machine: zero checkboxes, in every one of them. Items were written as prose sections,
+one of them a hundred and seventy-eight lines long across four items, so only the fallback
+branch ever ran and the count it was built around never appeared once. This is the same
+failure as an ambient condition, one level down: the trigger existed, the state it read
+did not. The fix was to state the tray's format — one line, a date after the checkbox —
+and to read the checkbox character rather than the section heading, since headings are
+written in whatever language the chat is in. The format deliberately asks for nothing
+beyond that line at the moment of capture: the tray exists so that catching a thought
+costs nothing, and a rule that makes something get created right then would bring the
+prose back.
+
+**A format nobody writes in can also hide inside the test.** Codex's `apply_patch`
+arrives in `PreToolUse` with the whole patch in `tool_input.command` and no path field
+at all, and one patch can add, rewrite, move and delete several files at once. Measured
+on 0.147.0 by Codex, reproduced here with a probe payload. `guard-write-scope.sh` read
+`tool_input.file_path`, found nothing, and allowed the call: a probe wrote a file
+outside every work tree, silently, leaving nothing in the hook log, because a hook that
+exits 0 early logs nothing. The boundary that the whole file is about did not exist for
+the editor of one of the two tools it governs.
+
+The selftest had a case named `apply_patch inside the work tree is allowed`, and it
+passed on every run. Its fixture put the path in `file_path` — the Claude shape under
+the Codex tool name — so the case proved the tool name was accepted and nothing else. A
+green test over a payload that the tool never sends is the same failure as a rule over a
+state that never arrives, and it is harder to see, because the test's name says the
+opposite.
+
+Two things follow, and both are in the code now. Paths come from `hook_paths` in
+`lib/payload.sh`, which reads the patch headers at the start of a line — body lines
+carry a `+`, `-` or space in the first column, so a diff line that looks like a header
+is content. And an editing call whose paths cannot be worked out is stopped rather than
+allowed: reading one field and waving the call through when it came back empty is
+exactly how this went unnoticed.
+
+**`PreCompact` gives no turn in which to write a file.** It fires before the summary and
+its `additionalContext` reaches the model, so it can shape what the summary carries; what
+it cannot do is get anything onto disk, because the agent does not act between the hook and
+the compaction. So "save the state before compaction" was a rule that fired exactly when it
+could no longer be obeyed, and the loss it existed to prevent happened at that moment. The
+hook is now written as a last note rather than a safety net, and the state it used to guard
+is protected earlier instead: `hooks/note-bookkeeping.sh` counts editing-tool calls since
+the active task's `journal.md` was last written and queues a nudge when that crosses a
+threshold. Edits are the primary measure precisely because the transcript is not available
+in Codex, and a debt meter that only worked in one tool would leave the other with the
+original problem.
 
 ## Where the names lie
 

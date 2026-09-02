@@ -28,12 +28,13 @@ hooks still fire.
 | [`AGENTS.md`](AGENTS.md) | the rules, one line each. Canonical; `AGENTS.ru.md` is the Russian copy |
 | [`docs/RATIONALE.md`](docs/RATIONALE.md) | why each rule exists. No agent reads this; it is for the person deciding |
 | [`docs/mechanisms.md`](docs/mechanisms.md) | what each mechanism actually does, measured, including six places where the names lie |
-| `hooks/` | nine hooks: seven enforce or remind on an observable trigger, two carry the states a skill needs to hear about |
-| `skills/` | eight skills installed globally — plan, handover, context-snapshot, audit, translate, rules-edit, new-repo, pass-secrets — plus `rules-install`, which stays here |
+| `hooks/` | ten hooks: seven enforce or remind on an observable trigger, three carry the states a skill needs to hear about |
+| `skills/` | eleven skills installed globally — spec, plan, handover, context-snapshot, idea, audit, tmp-tidy, translate, rules-edit, new-repo, pass-secrets — plus `rules-install`, which stays here |
 | `registry/` | hook registration for each tool, merged into place by `install.sh` |
 | `scripts/doctor.sh` | what is installed and what is missing. Changes nothing |
 | `scripts/uninstall.sh` | takes it back off, one group at a time, asking before each |
-| `templates/` | the shape a work plan takes |
+| `scripts/journal-from-transcript.sh` | a journal skeleton out of a session transcript, for after a context was lost |
+| `templates/` | the shape a task, an idea and the intake tray take |
 
 ## How it works
 

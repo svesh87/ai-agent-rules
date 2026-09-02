@@ -6,6 +6,13 @@
 #
 # "Look into tmp/TODO.md when starting work in a repository" is the rule that fails
 # most quietly: nobody notices a note that was not read. It is one line of output.
+# The counting behind that line was itself a quiet failure for a while — it counted
+# `- [ ]` checkboxes in a file nobody wrote checkboxes into, so only its fallback ever
+# ran. The tray now has a stated format and this hook reads it, including the dates
+# that say when the tray needs going through.
+#
+# The active tasks are here for the same reason and one more: two sessions in one
+# repository used to be told that the same file was the current plan.
 #
 # The eight repository categories used to be a paragraph the agent had to apply
 # correctly. Now the category is computed and stated, once, at the top.
@@ -123,23 +130,92 @@ if [ -n "$REPO_ROOT" ] && [ -z "$REPO_RULES" ] && [ -z "$REPO_RULES_UNTRACKED" ]
 fi
 
 # --- what is still open ---------------------------------------------------------
+# The tray, then the tasks. Both are read off the filesystem rather than remembered,
+# which is the only reason either line is reliable after a long session.
+#
+# Item state is the character in the checkbox and nothing else. The previous version
+# counted `- [ ]` and fell back to listing headings when it found none, and the
+# fallback was the only branch that ever ran: across five repositories on this machine
+# the tray held zero checkboxes and a hundred and eighty lines of prose. A format
+# nobody writes in is not a format. Sections are not read here either, because they
+# are written in whatever language the chat is in.
+#
+# An item older than TRAY_STALE_DAYS is what turns "the tray is a dump" from the
+# owner's chore into the agent's. The nudge names the count, not the items: a banner
+# that lists twelve stale lines is a banner nobody finishes reading.
+TRAY_STALE_DAYS=60
+
 if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/tmp/TODO.md" ]; then
-    open_items="$(grep -cE '^- \[ \]' "$REPO_ROOT/tmp/TODO.md" 2>/dev/null || printf 0)"
+    tray="$REPO_ROOT/tmp/TODO.md"
+    # No `|| printf 0` on any of these: `grep -c` prints its zero and *then* exits 1,
+    # so a fallback appends a second zero and every count reads "0\n0".
+    open_items="$(grep -cE '^- \[ \] ' "$tray" 2>/dev/null)"
+    owner_items="$(grep -cE '^- \[>\] ' "$tray" 2>/dev/null)"
     if [ "$open_items" -gt 0 ] 2>/dev/null; then
+        first="$(grep -m1 -E '^- \[ \] ' "$tray" | sed -E 's/^- \[ \] *//')"
         add "## Open in tmp/TODO.md"
-        add "$open_items unchecked item(s); first: $(grep -m1 -E '^- \[ \]' "$REPO_ROOT/tmp/TODO.md" | sed 's/^- \[ \] *//')"
-    else
-        heads="$(grep -m3 -E '^## ' "$REPO_ROOT/tmp/TODO.md" 2>/dev/null | sed 's/^## //' | paste -sd'; ' -)"
-        [ -n "$heads" ] && { add "## Open in tmp/TODO.md"; add "$heads"; }
+        line="$open_items open"
+        [ "$owner_items" -gt 0 ] 2>/dev/null && line="$line, $owner_items waiting on the owner"
+        add "$line; first: $first"
+
+        dated="$(grep -cE '^- \[ \] [0-9]{4}-[0-9]{2}-[0-9]{2} ' "$tray" 2>/dev/null)"
+        undated=$((open_items - dated))
+        [ "$undated" -gt 0 ] &&
+            nudge_or_say "- $undated open item(s) in tmp/TODO.md have no date after the checkbox, so their age cannot be told. Ask the owner for the dates, or move the bodies into ideas as the tray format says."
+
+        cutoff="$(date -d "-$TRAY_STALE_DAYS days" +%Y-%m-%d 2>/dev/null)"
+        if [ -n "$cutoff" ] && [ "$dated" -gt 0 ]; then
+            stale="$(sed -nE 's/^- \[ \] ([0-9]{4}-[0-9]{2}-[0-9]{2}) .*/\1/p' "$tray" 2>/dev/null |
+                awk -v c="$cutoff" '$1 < c' | grep -c .)"
+            [ "$stale" -gt 0 ] 2>/dev/null &&
+                nudge_or_say "- $stale item(s) in tmp/TODO.md have been open for more than $TRAY_STALE_DAYS days. Offer the owner a short list of them to close or reject, one line each; a rejection carries its reason. Do not close anything on your own."
+        fi
     fi
 fi
 
+if [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT/tmp/work" ]; then
+    # A task is a folder; .session is stamped by note-bookkeeping.sh when a session
+    # writes inside one. Two sessions in one repository is the case this replaces: the
+    # old banner named `ls -1t FIX_PLAN_*` as "the current plan", so both sessions were
+    # told the same file was theirs and the newest write won.
+    tasks=""
+    for d in "$REPO_ROOT"/tmp/work/*/; do
+        [ -d "$d" ] || continue
+        name="$(basename "$d")"
+        state=""
+        if [ -f "${d}.session" ]; then
+            other="$(sed -n '1p' "${d}.session" 2>/dev/null)"
+            stamp="$(sed -n '2p' "${d}.session" 2>/dev/null)"
+            case "$stamp" in
+                ''|*[!0-9]*) stamp=0 ;;
+            esac
+            # Six hours: long enough to cover a session left open over lunch, short
+            # enough that yesterday's claim does not read as somebody working now.
+            if [ -n "$other" ] && [ "$other" != "$(hook_session_id)" ] &&
+               [ $(( $(date +%s) - stamp )) -lt 21600 ]; then
+                state=" (claimed by another session $(( ( $(date +%s) - stamp ) / 60 ))m ago)"
+            fi
+        fi
+        [ -f "$d/spec.md" ] || state="$state (no spec)"
+        tasks="$tasks
+- tmp/work/$name$state"
+    done
+    if [ -n "$tasks" ]; then
+        add "## Active tasks"
+        add "Read the spec, the plan and the journal of the one being continued.${tasks}"
+    fi
+fi
+
+# Work started before the task layout existed. Said once, while it is still there:
+# a plan in the root of tmp/ has nobody to claim it and no journal beside it, so
+# without this line it would simply go quiet. It is not converted; see the tmp-tidy
+# skill for why.
 if [ -n "$REPO_ROOT" ]; then
+    legacy="$(ls -1t "$REPO_ROOT"/tmp/FIX_PLAN_*.md 2>/dev/null | head -1)"
+    [ -n "$legacy" ] &&
+        add "Note: tmp/$(basename "$legacy") predates the task layout and is still in the root. Read it where it lies; it is not converted into a task folder."
     [ -f "$REPO_ROOT/tmp/CONTEXT.md" ] &&
-        add "tmp/CONTEXT.md exists: read it before planning, it is the current state of the work."
-    plan="$(ls -1t "$REPO_ROOT"/tmp/FIX_PLAN_*.md 2>/dev/null | head -1)"
-    [ -n "$plan" ] &&
-        add "Current plan: tmp/$(basename "$plan")."
+        add "Note: tmp/CONTEXT.md predates the layout too. Current state now lives in tmp/work/<task>/context.md."
 fi
 
 # --- local rules, for the tool that cannot read them ----------------------------
