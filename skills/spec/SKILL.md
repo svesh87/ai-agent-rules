@@ -23,6 +23,12 @@ Take the shape from `templates/work/spec.md`, or `spec.ru.md` for Russian. Find 
 templates by resolving the entry point, `readlink -f ~/.claude/CLAUDE.md` or
 `readlink -f ~/.codex/AGENTS.md`, and looking in `templates/` beside it.
 
+The template's first line is the language switch between the two copies of the template
+itself. It is not part of the shape and is not copied: a task has one language, and an
+instance carrying that line points at a template rather than at a translation of itself.
+An agent did copy it, adjusting the relative path, which is how this sentence came to be
+here.
+
 The spec is written in the language of the chat. The owner is the one who approves it
 and it never reaches git.
 

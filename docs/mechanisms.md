@@ -93,8 +93,49 @@ lands as a `tool_result` inside a `user` entry, as "The user provided the follow
 reason for the rejection: <text>", with the entry carrying a UTC timestamp. That wrapper
 is what makes the field a trusted channel — an agent cannot put a user entry into the
 live transcript — and it is what the write grants are minted from
-(`lib/grants.sh`, `hooks/guard-write-scope.sh`). Codex hooks carry no transcript path,
-so there the mechanism stays silent and the ask is per file, as before.
+(`lib/grants.sh`, `hooks/guard-write-scope.sh`). In Codex the mechanism stays silent and
+the ask is per file, but the reason is narrower than "no transcript path": the key is
+declared and required in Codex's own payload schemas, typed as a nullable string, and
+the observed payload had nothing in it. What is absent there is the rejection wrapper,
+which is Claude Code's own way of recording an answer to a permission prompt.
+
+**Codex carries the JSON Schema of every hook payload inside its binary, input and
+output.** They are embedded as strings titled `pre-tool-use.command.input`,
+`user-prompt-submit.command.output` and so on for all ten events, and `strings` on the
+binary yields them in full. This is the cheapest measurement available for anything
+about Codex hooks: no session, no probe, no guessing at a field name. It is how three
+questions were settled at once — `prompt` is the field carrying the owner's message on
+`UserPromptSubmit` and it is required; `transcript_path` is declared for Codex too, as
+nullable; and `permissionDecision` on `pre-tool-use.command.output` accepts `allow`,
+`deny` and `ask`.
+
+**The schema is not the contract, and the last of those three is where it shows.** The
+enum allows `ask`; the runtime answers `PreToolUse hook returned unsupported
+permissionDecision:ask` and marks the hook **failed**. Measured live on 0.147.0, the same
+version whose binary declares the enum. So the embedded schemas are good for field names
+and useless for which values are honoured.
+
+**What Codex does with a hook it considers failed matters more than the ask.** It
+discards the verdict and falls back to its own policy: in the same run, the refused write
+went on to Codex's own "Would you like to make the following edits?" prompt. An error in
+a hook there is therefore not a safe refusal, it is no check at all. This is the opposite
+of Claude Code, where a hook that cannot answer is treated as blocking, and it is why
+`hook_ask` degrading to a refusal outside Claude Code is load-bearing rather than a
+workaround: exit 2 is the only shape in which our decision survives.
+
+**So the owner's yes takes a different channel in each tool.** In Claude Code it is the
+phrase in the rejection dialog, read out of the transcript. In Codex it is the next chat
+message, read from `prompt` on `UserPromptSubmit` by `hooks/prompt-nudge.sh`, which mints
+the grant against the scope `guard-write-scope.sh` recorded when it refused. Both rest on
+the same property: the harness writes the owner's words, and an agent cannot forge them.
+Both are narrow in the same way — the message must be nothing but the phrase, the refusal
+must be less than ten minutes old, and the grant covers writing files and nothing else.
+
+One limit is worth knowing before relying on it. Under a live grant the retry gets a
+silent allow in Codex rather than an explicit one, so Codex may still put its own
+question. Whether it honours an explicit `allow` is unmeasured, and after `ask` the
+schema is no longer evidence either way; a decision it rejects would mark the hook failed
+and thereby drop our verdict, which is worse than one extra prompt.
 
 **An explicit `permissionDecision: "allow"` suppresses the harness's own permission
 prompt; a silent exit 0 does not.** Measured live: a `Write` outside every work tree
@@ -235,9 +276,14 @@ could no longer be obeyed, and the loss it existed to prevent happened at that m
 hook is now written as a last note rather than a safety net, and the state it used to guard
 is protected earlier instead: `hooks/note-bookkeeping.sh` counts editing-tool calls since
 the active task's `journal.md` was last written and queues a nudge when that crosses a
-threshold. Edits are the primary measure precisely because the transcript is not available
-in Codex, and a debt meter that only worked in one tool would leave the other with the
-original problem.
+threshold. Editing calls are the only measure. The transcript's growth in bytes was tried
+as a second one and removed after the first live session, where both thresholds fired on
+the byte count — at six edits and at twenty — because 150 KB of transcript goes by in a
+few calls, so the supplement was deciding everything while the measure meant to be primary
+never came close to its number. Raising it would not have been enough: there is no
+transcript in a Codex payload, so a byte threshold that fires first in Claude Code means
+the two tools nag about different things and each needs calibrating on its own. One
+measure has one number to get right.
 
 ## Where the names lie
 

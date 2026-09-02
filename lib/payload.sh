@@ -68,6 +68,18 @@ hook_warn() {
 # understand the JSON sees exit 0 and lets the call through, so a guard that guessed
 # wrong would be a guard that quietly allows. Codex support for the ask decision is
 # unmeasured; when it is measured, this is the one place that changes.
+# Outside Claude Code an ask becomes a refusal, and that is measured rather than assumed.
+# Codex's binary declares `permissionDecision` with an enum of `allow`, `deny` and `ask`
+# in `pre-tool-use.command.output`, so the schema says ask is valid; its runtime answers
+# `PreToolUse hook returned unsupported permissionDecision:ask` and marks the hook failed.
+# The schema is not the contract.
+#
+# What follows from the failure matters more than the ask itself: Codex discards the
+# verdict of a hook it considers failed and falls back to its own policy. So an error in
+# our hook there is not a safe refusal, it is no check at all, and the refusal below is
+# the only shape in which our decision survives. Exit 2 is honoured, and that is measured
+# too. In Codex the way the owner says yes is the phrase in chat that hooks/prompt-nudge.sh
+# turns into a write grant.
 hook_ask() {
     if [ -z "${CLAUDECODE:-}" ]; then
         hook_log "ask is unavailable here, refusing instead"
@@ -88,6 +100,10 @@ hook_ask() {
 # silent exit 0 does not, and a write grant that still produced a native prompt per
 # file would not have removed the clicking it exists to remove. Claude Code's contract
 # only; elsewhere this degrades to the ordinary silent allow.
+# Outside Claude Code this stays a silent allow on purpose. Whether Codex honours an
+# explicit `allow` at runtime is unmeasured — `ask` is not, and the schema was no guide —
+# and a decision it rejects would mark the hook failed, which makes it ignore our verdict
+# altogether. A silent allow costs one of Codex's own prompts and cannot mislead.
 hook_allow_decision() {
     if [ -z "${CLAUDECODE:-}" ] || ! hook_have_jq; then
         hook_allow

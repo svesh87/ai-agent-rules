@@ -15,9 +15,9 @@
 #   scripts/journal-from-transcript.sh --latest   # newest transcript for this directory
 #
 # Claude Code keeps transcripts as JSON Lines under
-# ~/.claude/projects/<slug>/<session>.jsonl. Codex payloads carry no transcript path at
-# all, so there this script has nothing to read; that is a property of the harness and
-# is recorded in docs/mechanisms.md.
+# ~/.claude/projects/<slug>/<session>.jsonl. A Codex payload declares `transcript_path`
+# but the observed value was empty, so there this script has nothing to read; that is a
+# property of the harness and is recorded in docs/mechanisms.md.
 
 set -u
 

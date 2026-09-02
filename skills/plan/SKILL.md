@@ -20,7 +20,8 @@ folder, and everything of it stays inside: `tasks.md`, `journal.md`, `context.md
 
 Take the shape from `templates/work/plan.md`, or `plan.ru.md` for Russian, beside the
 resolved entry point. Do not invent a structure and do not copy one from another
-repository.
+repository. The template's first line is the language switch between the two copies of
+the template itself: it is not part of the shape and is not copied into the plan.
 
 The plan is written in the language of the chat, not of the repository. The owner is
 the one who reads it, and it never reaches git.

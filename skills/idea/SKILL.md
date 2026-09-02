@@ -21,7 +21,8 @@ which then live beside it rather than in the root of `tmp/`.
 
 The date comes from `date '+%Y-%m-%d'`. The shape is in `templates/idea.md`, or
 `idea.ru.md` for Russian; find them beside the resolved entry point, as the `spec`
-skill describes.
+skill describes. The template's first line is the language switch between the two copies
+of the template itself: it is not part of the shape and is not copied into the idea.
 
 ## The frontmatter is the part that matters
 

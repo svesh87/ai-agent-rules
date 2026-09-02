@@ -17,8 +17,8 @@
 # hooks/prompt-nudge.sh delivers it beside the owner's next message, which is the one
 # position measured to actually get acted on.
 #
-# Edits are the measure, and the only one. Codex payloads carry no transcript path at
-# all, so anything read out of a transcript would work in one tool and not the other;
+# Edits are the measure, and the only one. A Codex payload declares `transcript_path` but
+# leaves it empty, so anything read out of a transcript would work in one tool and not the other;
 # the first live session then showed that a byte threshold fires long before an edit
 # count does, which meant the supplement was deciding everything. See the measure below.
 #

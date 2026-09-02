@@ -827,6 +827,95 @@ check_ask "the tray of a foreign checkout" guard-write-scope.sh \
     "$(edit_payload "$R" "$FOREIGN/tmp/TODO.md" Write)"
 unset XDG_CONFIG_HOME
 
+echo "== in Codex the owner's yes arrives as the next chat message"
+# The channel exists because Codex has no dialog of ours to answer: measured live, its
+# runtime returns `unsupported permissionDecision:ask` and marks the hook failed, and a
+# failed hook there means the verdict is discarded rather than enforced. So the refusal is
+# the only shape our decision survives in, and this is how it gets answered.
+#
+# Everything runs against caches inside the fixture, so nothing here mints a grant in the
+# operator's own cache.
+CHAT_CACHE="$WORK/cache-chat"
+mkdir -p "$CHAT_CACHE/agent-rules/nudge"
+: > "$CHAT_CACHE/agent-rules/nudge/.delivery-codex-enabled"
+chat_prompt() {
+    printf '{"session_id":"selftest-chat","hook_event_name":"UserPromptSubmit","cwd":"%s","prompt":%s}' \
+        "$R" "$(printf '%s' "$1" | jq -Rs .)" |
+        XDG_CACHE_HOME="$CHAT_CACHE" env -u CLAUDECODE "$HERE/prompt-nudge.sh" 2>/dev/null
+}
+chat_grants() { ls -1 "$CHAT_CACHE/agent-rules/grants"/*.grant 2>/dev/null | grep -c . ; }
+chat_refuse() {
+    mkdir -p "$CHAT_CACHE/agent-rules/asked"
+    printf '%s\n%s\n' "$OUTSIDE" "$1" > "$CHAT_CACHE/agent-rules/asked/selftest-chat"
+}
+rm -rf "$CHAT_CACHE/agent-rules/grants" "$CHAT_CACHE/agent-rules/asked"
+
+# A phrase with nothing refused behind it grants nothing.
+chat_prompt "на час" >/dev/null
+if [ "$(chat_grants)" = 0 ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  a grant phrase with no refusal behind it minted a grant"
+fi
+
+# A refusal older than the window is not something a phrase can answer.
+chat_refuse "$(( $(date +%s) - 3600 ))"
+chat_prompt "на час" >/dev/null
+if [ "$(chat_grants)" = 0 ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  a stale refusal was answered by a phrase"
+fi
+
+# The phrase has to be the whole message.
+chat_refuse "$(date +%s)"
+chat_prompt "давай на час зайдём в соседнюю репу и поправим" >/dev/null
+if [ "$(chat_grants)" = 0 ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  a phrase quoted inside a sentence minted a grant"
+fi
+
+# The whole cycle: a fresh refusal, the phrase alone, a grant, and the agent told to retry.
+chat_refuse "$(date +%s)"
+CHAT_OUT="$(chat_prompt "аппрув на 2 часа")"
+if [ "$(chat_grants)" = 1 ] &&
+   printf '%s' "$CHAT_OUT" | jq -re '.hookSpecificOutput.additionalContext' 2>/dev/null |
+   grep -q 'granted writes in'; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  the phrase after a fresh refusal did not mint a grant and say so"
+fi
+# The record is spent, so the same phrase cannot mint a second grant.
+CHAT_BEFORE="$(chat_grants)"
+chat_prompt "аппрув на 2 часа" >/dev/null
+if [ "$(chat_grants)" = "$CHAT_BEFORE" ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  a spent refusal was answered twice"
+fi
+
+# In Claude Code the channel is the rejection dialog, and this one must stay shut.
+rm -rf "$CHAT_CACHE/agent-rules/grants"
+chat_refuse "$(date +%s)"
+printf '{"session_id":"selftest-chat","hook_event_name":"UserPromptSubmit","cwd":"%s","prompt":"на час"}' "$R" |
+    XDG_CACHE_HOME="$CHAT_CACHE" CLAUDECODE=1 "$HERE/prompt-nudge.sh" >/dev/null 2>&1
+if [ "$(chat_grants)" = 0 ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  the chat channel minted a grant inside Claude Code"
+fi
+
+# Delivery of an ordinary nudge still works, with and without a grant in the same message.
+printf -- '- ordinary nudge\n' > "$CHAT_CACHE/agent-rules/nudge/selftest-chat"
+NUDGE_OUT="$(chat_prompt "просто сообщение")"
+if printf '%s' "$NUDGE_OUT" | jq -re '.hookSpecificOutput.additionalContext' 2>/dev/null |
+   grep -q 'ordinary nudge'; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  an ordinary nudge stopped being delivered"
+fi
+
 echo "== a nudge nobody collected does not wait forever"
 # The queue is only read on a prompt, so a session that ends before sending one leaves its
 # line behind, and a resumed session brings the id back. The sweep takes the stale line and

@@ -30,6 +30,13 @@
 # tree stays per-file, and so does everything in guard-destructive.sh, because permission
 # to write is not consent to everything.
 #
+# Outside Claude Code there is no dialog to answer: Codex rejects an ask decision as
+# unsupported and marks the hook failed, which makes it drop our verdict, so the refusal
+# below is the only shape that holds. The scope of that refusal is recorded either way
+# (grant_asked_record), and in Codex the owner answers it with the next chat message,
+# which hooks/prompt-nudge.sh turns into the same kind of grant. The sentence addressed to
+# the owner therefore differs by tool, further down.
+#
 # One path skips the ask outright rather than being granted for a while: `tmp/TODO.md` at
 # the root of another repository of ours, the intake tray. "Put this in that repo's TODO"
 # is a request the owner makes and then leaves the window, so a confirmation there waits
@@ -74,8 +81,8 @@ judge_path() {
     local TARGET="$1" ABS ROOT="$ROOT"
     local ABS_R ROOT_R MEM_CLAUDE MEM_CODEX
     local tray_root tray_top tray_cat
-    local GRANT_SCOPE GRANT_HIT ASKED_FILE TRANSCRIPT
-    local asked_scope asked_at fresh fb fb_ts fb_text asked_iso mins
+    local GRANT_SCOPE GRANT_HIT SID TRANSCRIPT HOW_TO_GRANT
+    local asked_scope asked_at fb fb_ts fb_text asked_iso mins
 
     case "$TARGET" in
         /*) ABS="$TARGET" ;;
@@ -245,43 +252,47 @@ judge_path() {
     # the same repository, an ask at most ten minutes old, the rejection not older than
     # the ask. Everything that fails to parse falls through to asking again; the failure
     # direction here is never an allow.
-    ASKED_FILE="$HOOK_CACHE_DIR/asked/$(hook_session_id)"
+    SID="$(hook_session_id)"
     TRANSCRIPT="$(hook_field '.transcript_path')"
-    if [ -f "$ASKED_FILE" ] && [ -n "$TRANSCRIPT" ]; then
-        asked_scope="$(sed -n '1p' "$ASKED_FILE" 2>/dev/null)"
-        asked_at="$(sed -n '2p' "$ASKED_FILE" 2>/dev/null)"
-        fresh=""
-        case "$asked_at" in
-            ''|*[!0-9]*) : ;;
-            *) [ $(( $(date +%s) - asked_at )) -le 600 ] && fresh=1 ;;
-        esac
-        if [ -n "$fresh" ] && [ "$asked_scope" = "$GRANT_SCOPE" ]; then
-            fb="$(grant_rejection_feedback "$TRANSCRIPT")"
-            fb_ts="${fb%%$'\t'*}"
-            fb_text="${fb#*$'\t'}"
-            asked_iso="$(date -u -d "@$asked_at" +%Y-%m-%dT%H:%M:%S 2>/dev/null)"
-            if [ -n "$fb" ] && [ -n "$asked_iso" ] && ! [ "${fb_ts:0:19}" \< "$asked_iso" ]; then
-                if mins="$(grant_phrase_minutes "$fb_text")"; then
-                    grant_create "$GRANT_SCOPE" "$mins" "owner's phrase in the rejection dialog, session $(hook_session_id)"
-                    rm -f "$ASKED_FILE" 2>/dev/null
-                    VERDICT_DECIDE="The owner granted writes in $GRANT_SCOPE for $mins minutes."
-                    return 3
-                fi
+    if [ -n "$TRANSCRIPT" ] && asked_scope="$(grant_asked_scope "$SID")" &&
+       [ "$asked_scope" = "$GRANT_SCOPE" ]; then
+        asked_at="$(grant_asked_at "$SID")" || asked_at=""
+        fb="$(grant_rejection_feedback "$TRANSCRIPT")"
+        fb_ts="${fb%%$'\t'*}"
+        fb_text="${fb#*$'\t'}"
+        asked_iso=""
+        [ -n "$asked_at" ] && asked_iso="$(date -u -d "@$asked_at" +%Y-%m-%dT%H:%M:%S 2>/dev/null)"
+        if [ -n "$fb" ] && [ -n "$asked_iso" ] && ! [ "${fb_ts:0:19}" \< "$asked_iso" ]; then
+            if mins="$(grant_phrase_minutes "$fb_text")"; then
+                grant_create "$GRANT_SCOPE" "$mins" "owner's phrase in the rejection dialog, session $SID"
+                grant_asked_clear "$SID"
+                VERDICT_DECIDE="The owner granted writes in $GRANT_SCOPE for $mins minutes."
+                return 3
             fi
         fi
     fi
 
-    mkdir -p "$(dirname "$ASKED_FILE")" 2>/dev/null || true
-    printf '%s\n%s\n' "$GRANT_SCOPE" "$(date +%s)" > "$ASKED_FILE" 2>/dev/null || true
+    grant_asked_record "$SID" "$GRANT_SCOPE"
+
+    # The two channels differ, so the sentence addressed to the owner differs. In Claude
+    # Code the answer goes in the rejection dialog; in Codex there is no dialog of ours,
+    # because its runtime rejects an ask, so the answer is the next chat message.
+    if [ -n "${CLAUDECODE:-}" ]; then
+        HOW_TO_GRANT="To the owner: Yes allows this one file. To allow writes in $GRANT_SCOPE for a while,
+reject with the reason «на 10 минут» or «на час» — the agent then retries this call
+and the retry passes without a question."
+    else
+        HOW_TO_GRANT="To the owner: to allow writes in $GRANT_SCOPE for a while, send «на 10 минут» or
+«на час» as your next message, on its own. Nothing else in that message, or it does not
+count. The retry then passes this check; Codex may still put its own question."
+    fi
 
     VERDICT_ASK="$(cat <<EOF
 $ABS is outside this work tree ($ROOT).
 Files outside the repository are opened only at the owner's request and only at the
 path they name; reading is the default, writing needs a request of its own.
 Confirm if this is the path they named, otherwise refuse and say so.
-To the owner: Yes allows this one file. To allow writes in $GRANT_SCOPE for a while,
-reject with the reason «на 10 минут» or «на час» — the agent then retries this call
-and the retry passes without a question.
+$HOW_TO_GRANT
 EOF
 )"
     return 1
