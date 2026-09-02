@@ -20,6 +20,15 @@
 # on this machine in permission mode `auto`: the question reached the owner, an approval
 # let the write through and a refusal stopped it with the reason coming back. Where ask is
 # unavailable, hook_ask refuses with the same text rather than guessing.
+#
+# The ask can also be answered for a while, not only per file. A session working across a
+# neighbouring repository used to cost the owner one click per write; now the owner types
+# «на 10 минут» or «на час» into the rejection dialog instead of clicking Yes, and the
+# retry finds those words in the transcript — inside the wrapper the harness writes, which
+# an agent cannot forge — and creates a time-boxed grant for that repository
+# (lib/grants.sh). Only this ask honours grants: the branch about our files in a foreign
+# tree stays per-file, and so does everything in guard-destructive.sh, because permission
+# to write is not consent to everything.
 
 set -u
 HOOK_NAME="guard-write-scope"
@@ -30,6 +39,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/../lib/repo-class.sh"
 # shellcheck source=../lib/policy.sh
 . "$HERE/../lib/policy.sh"
+# shellcheck source=../lib/grants.sh
+. "$HERE/../lib/grants.sh"
 
 hook_read_payload
 hook_is_edit_tool || hook_allow
@@ -152,11 +163,54 @@ esac
 
 # Everything else is outside the work tree: the operator's own files, another
 # repository, the home directory. Opened on request, at the named path, one act at a
-# time.
+# time — or for a granted while, when the owner said so in the rejection dialog.
+GRANT_SCOPE="$(grant_scope_of "$ABS")"
+
+if GRANT_HIT="$(grant_match "$ABS")"; then
+    hook_allow_decision "A live write grant from the owner covers $GRANT_HIT."
+fi
+
+# Did the owner answer the previous ask with a grant phrase instead of a click? The
+# phrase is read out of the transcript, not out of the agent's message: the wrapper
+# around it is written by the harness, and the recency checks tie it to our own ask —
+# the same repository, an ask at most ten minutes old, the rejection not older than
+# the ask. Everything that fails to parse falls through to asking again; the failure
+# direction here is never an allow.
+ASKED_FILE="$HOOK_CACHE_DIR/asked/$(hook_session_id)"
+TRANSCRIPT="$(hook_field '.transcript_path')"
+if [ -f "$ASKED_FILE" ] && [ -n "$TRANSCRIPT" ]; then
+    asked_scope="$(sed -n '1p' "$ASKED_FILE" 2>/dev/null)"
+    asked_at="$(sed -n '2p' "$ASKED_FILE" 2>/dev/null)"
+    fresh=""
+    case "$asked_at" in
+        ''|*[!0-9]*) : ;;
+        *) [ $(( $(date +%s) - asked_at )) -le 600 ] && fresh=1 ;;
+    esac
+    if [ -n "$fresh" ] && [ "$asked_scope" = "$GRANT_SCOPE" ]; then
+        fb="$(grant_rejection_feedback "$TRANSCRIPT")"
+        fb_ts="${fb%%$'\t'*}"
+        fb_text="${fb#*$'\t'}"
+        asked_iso="$(date -u -d "@$asked_at" +%Y-%m-%dT%H:%M:%S 2>/dev/null)"
+        if [ -n "$fb" ] && [ -n "$asked_iso" ] && ! [ "${fb_ts:0:19}" \< "$asked_iso" ]; then
+            if mins="$(grant_phrase_minutes "$fb_text")"; then
+                grant_create "$GRANT_SCOPE" "$mins" "owner's phrase in the rejection dialog, session $(hook_session_id)"
+                rm -f "$ASKED_FILE" 2>/dev/null
+                hook_allow_decision "The owner granted writes in $GRANT_SCOPE for $mins minutes."
+            fi
+        fi
+    fi
+fi
+
+mkdir -p "$(dirname "$ASKED_FILE")" 2>/dev/null || true
+printf '%s\n%s\n' "$GRANT_SCOPE" "$(date +%s)" > "$ASKED_FILE" 2>/dev/null || true
+
 hook_ask "$(cat <<EOF
 $ABS is outside this work tree ($ROOT).
 Files outside the repository are opened only at the owner's request and only at the
 path they name; reading is the default, writing needs a request of its own.
 Confirm if this is the path they named, otherwise refuse and say so.
+To the owner: Yes allows this one file. To allow writes in $GRANT_SCOPE for a while,
+reject with the reason «на 10 минут» or «на час» — the agent then retries this call
+and the retry passes without a question.
 EOF
 )"

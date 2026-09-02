@@ -58,7 +58,10 @@ hook_warn() {
 # confirm", with nothing to confirm with: the only way through was switching every hook
 # off for the whole session. The confirmation has to be the harness's, not ours, because
 # a prompt the harness draws is the one thing an agent cannot answer on the owner's
-# behalf. A token file in the cache would look like a barrier and be none.
+# behalf. A token file in the cache would look like a barrier and be none. The write
+# grants in lib/grants.sh do not contradict that line: their files are created by a hook
+# out of words the owner typed into the harness's own rejection dialog, never by the
+# agent, and both ways of writing them directly are stopped.
 #
 # The JSON form is Claude Code's documented contract. Anything else falls back to a
 # refusal with the same text, and that direction is deliberate: a harness that does not
@@ -77,6 +80,21 @@ hook_ask() {
     hook_log "ask in mode [$(hook_field '.permission_mode')]: $*"
     printf '%s' "$*" | jq -Rs '{hookSpecificOutput:{hookEventName:"PreToolUse",
         permissionDecision:"ask", permissionDecisionReason:.}}'
+    exit 0
+}
+
+# Allow with an explicit decision, not silence. The difference matters exactly once:
+# a documented explicit allow bypasses the harness's own permission prompt, which a
+# silent exit 0 does not, and a write grant that still produced a native prompt per
+# file would not have removed the clicking it exists to remove. Claude Code's contract
+# only; elsewhere this degrades to the ordinary silent allow.
+hook_allow_decision() {
+    if [ -z "${CLAUDECODE:-}" ] || ! hook_have_jq; then
+        hook_allow
+    fi
+    hook_log "allow decision: $*"
+    printf '%s' "$*" | jq -Rs '{hookSpecificOutput:{hookEventName:"PreToolUse",
+        permissionDecision:"allow", permissionDecisionReason:.}}'
     exit 0
 }
 

@@ -87,6 +87,24 @@ with the same text anywhere but Claude Code: a harness that ignores the JSON rea
 as permission to proceed, and a guard that guessed wrong would be a guard that quietly
 allows.
 
+**What the owner types into the rejection dialog reaches a hook through the transcript,
+in a wrapper only the harness writes.** Measured on this machine's transcripts: the text
+lands as a `tool_result` inside a `user` entry, as "The user provided the following
+reason for the rejection: <text>", with the entry carrying a UTC timestamp. That wrapper
+is what makes the field a trusted channel — an agent cannot put a user entry into the
+live transcript — and it is what the write grants are minted from
+(`lib/grants.sh`, `hooks/guard-write-scope.sh`). Codex hooks carry no transcript path,
+so there the mechanism stays silent and the ask is per file, as before.
+
+**An explicit `permissionDecision: "allow"` suppresses the harness's own permission
+prompt; a silent exit 0 does not.** Measured live: a `Write` outside every work tree
+under a live grant went through with no dialog of any kind, in a session where the same
+write without the grant had just produced the question. This is the difference that lets
+a grant actually remove the clicking, and it is why the grant path answers with the JSON
+decision (`hook_allow_decision` in `lib/payload.sh`) rather than with silence. Outside
+Claude Code it degrades to the ordinary silent allow, because the decision JSON is
+unmeasured there.
+
 **The workspace roots a session was opened with are not visible to a hook.** Measured in a
 live session with two folders added: the payload carries `cwd`, `effort.level`,
 `hook_event_name`, `permission_mode`, `prompt_id`, `session_id`, `tool_input.*`,

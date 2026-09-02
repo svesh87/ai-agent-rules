@@ -104,6 +104,33 @@ for pair in "claude:$claude_home" "codex:$codex_home"; do
 done
 
 echo
+echo "write grants"
+# Time-boxed allowances for writes outside a work tree, created by guard-write-scope.sh
+# from the owner's words in the rejection dialog (lib/grants.sh). Read directly rather
+# than through the lib: the lib sweeps expired grants on every read, and a report that
+# changes nothing has no business deleting files, so an expired one is reported instead.
+grants_dir="${XDG_CACHE_HOME:-$HOME/.cache}/agent-rules/grants"
+grants_now="$(date +%s)"
+grants_seen=""
+for f in "$grants_dir"/*.grant; do
+    [ -f "$f" ] || continue
+    grants_seen=1
+    g_pfx="$(sed -n '1p' "$f" 2>/dev/null)"
+    g_exp="$(sed -n '2p' "$f" 2>/dev/null)"
+    g_src="$(sed -n '3p' "$f" 2>/dev/null)"
+    case "$g_exp" in
+        ''|*[!0-9]*) note "malformed grant file $f, the next write-scope check removes it" ;;
+        *)
+            if [ "$g_exp" -gt "$grants_now" ]; then
+                ok "writes in $g_pfx for $(( (g_exp - grants_now + 59) / 60 )) more min ($g_src)"
+            else
+                note "expired grant for $g_pfx, the next write-scope check removes it"
+            fi ;;
+    esac
+done
+[ -n "$grants_seen" ] || note "none"
+
+echo
 echo "repository classifier profile"
 if [ ! -f "$profile" ]; then
     miss "$profile does not exist: every repository will be classified as foreign"

@@ -15,6 +15,11 @@
 # unsigned commit, a force push, a rewritten history and a push out of a category that
 # forbids it are not in that class: there is no version of them the owner would approve in
 # passing, so they stay refusals.
+#
+# A push is judged by the repository the command runs in, not the one the session sits
+# in: `cd <clone> && git push` and `git -C <clone> push` are pushes from the clone. When
+# that directory cannot be read out of the command at all, the push becomes a question
+# for the owner rather than a verdict either way.
 
 set -u
 HOOK_NAME="guard-destructive"
@@ -70,8 +75,9 @@ if printf '%s' "$SCAN" | grep -qE '(--no-gpg-sign|-c\s+commit\.gpgsign=false)'; 
     hook_deny "Blocked: signing is switched off. Signing is the owner's policy. If the key times out, retry once and then hand over a ready git commit -F <file>."
 fi
 
-# History rewrites and force pushes.
-if printf '%s' "$SCAN" | grep -qE 'git\s+push[^;&|]*(--force([^-]|$)|-f(\s|$))'; then
+# History rewrites and force pushes. The optional -C is part of the anchor: without it
+# `git -C <clone> push --force` slid past a check built to stop exactly that.
+if printf '%s' "$SCAN" | grep -qE 'git\s+(-C\s+[^[:space:];&|]+\s+)?push[^;&|]*(--force([^-]|$)|-f(\s|$))'; then
     hook_deny "Blocked: force push. --force is never ours to add. Show the discrepancy and let the owner decide."
 fi
 if printf '%s' "$SCAN" | grep -qE 'git\s+(reset\s+--hard|filter-branch|filter-repo|rebase[^;&|]*-i)'; then
@@ -104,15 +110,80 @@ if printf '%s' "$SCAN" | grep -qE '(docker\s+system\s+prune|docker\s+volume\s+pr
     hook_ask "A broad cleanup of services or data. This needs approval for this exact operation."
 fi
 
-# Pushing where we have no business pushing. Category comes from the session cache
-# when SessionStart filled it, otherwise it is computed here without the network.
-CWD="$(hook_cwd)"
-repo_context "$CWD" "$(hook_session_id)"
+# Pushing where we have no business pushing. The category is the target repository's,
+# not the session's: a push runs where its command runs. This used to classify the
+# session directory alone, and the one push it then blocked in earnest was one the owner
+# had asked for — `cd <work clone> && git push` from a session sitting in a local
+# repository. So the scan is walked in segment order: `cd` moves the effective
+# directory, and every push is judged in the directory it actually executes in, with
+# `git -C <path>` resolved against that. Category still comes from the session cache
+# when the directory is inside the cached root, and is computed without the network
+# otherwise; that logic lives in repo_context, not here.
 
-if printf '%s' "$SCAN" | grep -qE 'git\s+push'; then
-    if ! policy_allow push "${REPO_CATEGORY:-foreign-no-rules}" "${RULES_MINE:-na}"; then
-        hook_deny "Blocked: push from a repository classified as ${REPO_CATEGORY:-unknown} ($(policy_summary "${REPO_CATEGORY:-unknown}" "${RULES_MINE:-na}"))."
-    fi
+# push_step_dir <base> <token> — the directory the token lands in, or nothing when it
+# cannot be known statically: a variable, a substitution, a quote the masking pass ate
+# and the readback could not pin down. An empty base means "already unknown", which
+# only an absolute token can repair.
+push_step_dir() {
+    local base="$1" tok="$2"
+    case "$tok" in
+        '')          printf '%s' "$HOME" ;;
+        -)           : ;;
+        *'$'*|*'`'*|QUOTED) : ;;
+        '~')         printf '%s' "$HOME" ;;
+        '~/'*)       printf '%s/%s' "$HOME" "${tok#\~/}" ;;
+        '~'*)        : ;;
+        /*)          printf '%s' "$tok" ;;
+        *)           [ -n "$base" ] && printf '%s/%s' "$base" "$tok" ;;
+    esac
+}
+
+# push_unquote_one <word-before-the-quote> — the quoted argument read back out of the
+# command as written, like the rm target above. Only when the whole command has exactly
+# one quoted argument in that position: two cannot be told apart by position here, so
+# the directory stays unknown and the push becomes a question rather than a guess.
+push_unquote_one() {
+    local hits
+    hits="$(printf '%s' "$CMD" | grep -oE "$1[[:space:]]+(\"[^\"]*\"|'[^']*')" |
+        sed -E "s/^$1[[:space:]]+[\"']//; s/[\"']\$//")"
+    [ "$(printf '%s\n' "$hits" | grep -c .)" = 1 ] || return 0
+    printf '%s' "$hits"
+}
+
+CWD="$(hook_cwd)"
+
+if printf '%s' "$SCAN" | grep -qE 'git\s[^;&|]*push'; then
+    # A push segment is git (or sudo git) with only flags between it and `push`, so
+    # that `git stash push` stays what it is. -C and -c carry an argument of their own.
+    push_seg='^(sudo[[:space:]]+)?git[[:space:]]+((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--?[^[:space:]]+[[:space:]]+)*push([[:space:]]|$)'
+    DIR="$CWD"
+    while IFS= read -r seg; do
+        seg="$(printf '%s' "$seg" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+        [ -n "$seg" ] || continue
+        case "$seg" in
+        cd|cd[[:space:]]*)
+            arg="$(printf '%s' "${seg#cd}" | sed -E 's/^[[:space:]]+//; s/[[:space:]].*$//')"
+            [ "$arg" = QUOTED ] && { arg="$(push_unquote_one cd)"; [ -n "$arg" ] || arg=QUOTED; }
+            DIR="$(push_step_dir "$DIR" "$arg")"
+            continue ;;
+        esac
+        printf '%s' "$seg" | grep -qE "$push_seg" || continue
+        target="$DIR"
+        copt="$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])-C[[:space:]]+[^[:space:]]+' | head -1 | awk '{print $2}')"
+        if [ -n "$copt" ]; then
+            [ "$copt" = QUOTED ] && { copt="$(push_unquote_one '[-]C')"; [ -n "$copt" ] || copt=QUOTED; }
+            target="$(push_step_dir "$target" "$copt")"
+        fi
+        if [ -z "$target" ]; then
+            hook_ask "A git push whose repository cannot be determined from the command (a variable or substitution in cd or -C). Confirm this exact push, or rewrite it with a literal path."
+        fi
+        repo_context "$target" "$(hook_session_id)"
+        if ! policy_allow push "${REPO_CATEGORY:-foreign-no-rules}" "${RULES_MINE:-na}"; then
+            hook_deny "Blocked: push in $target, a repository classified as ${REPO_CATEGORY:-foreign-no-rules} ($(policy_summary "${REPO_CATEGORY:-unknown}" "${RULES_MINE:-na}"))."
+        fi
+    # Process substitution, not a heredoc: an unquoted heredoc expands backticks, and
+    # this one would carry them straight out of the command under judgement.
+    done < <(printf '%s\n' "$SCAN" | tr ';&|' '\n')
 fi
 
 hook_allow

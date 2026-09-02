@@ -27,6 +27,19 @@ hook_is_shell_tool || hook_allow
 CMD="$(hook_command)"
 [ -n "$CMD" ] || hook_allow
 
+# The grants directory is written by guard-write-scope.sh out of the owner's own words
+# in the rejection dialog, never by a command: a shell write toward it is a way to mint
+# permission, so it is refused, and this sits above the scratch exemption on purpose —
+# a cache resolved into scratch space must not turn the tripwire off. Reading a grant,
+# or rm to revoke one, stays out of the pattern: the failure direction of a lost grant
+# is a question to the owner, not an allow.
+if printf '%s' "$CMD" | grep -q 'agent-rules/grants' &&
+   printf '%s' "$CMD" | grep -qE '((^|[^0-9])>|\btee\b|\bcp\b|\bmv\b|\btouch\b|\bmkdir\b|\bln\b|\bdd\b|\bsed\b|\bawk\b|\bperl\b|\bpython3?\b)'; then
+    # The redirect pattern skips a digit before the `>`: `2>/dev/null` on an rm that
+    # revokes a grant is not a write toward the directory, and revocation must stay free.
+    hook_deny "Blocked: grants under agent-rules/grants/ are created from the owner's own words in the rejection dialog, not by commands."
+fi
+
 # Scratch space is exempt: generating a file with a script is legitimate work, and
 # nothing under tmp/ or the system temporary directory is ever reviewed as a diff.
 case "$CMD" in
