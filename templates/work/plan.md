@@ -6,6 +6,9 @@
 **Date:** <YYYY-MM-DD>
 **Spec:** `spec.md` in this folder
 
+The first word of the status is what a check can act on: `draft`, `approved` or `done`,
+and free text after it. `scripts/task.sh approve plan` is what writes that word.
+
 ## Settled decisions
 
 Answers the owner gave in chat, one line each. Decisions, not questions: a plan has no

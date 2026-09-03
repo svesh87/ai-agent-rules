@@ -10,11 +10,14 @@
 # lint command ran in this session, say so. The hook cannot know a project's gates,
 # and inventing them would be worse than asking, so it only points.
 #
-# The third is the declared deliverables. The spec of the active task names them, the
-# secondary ones included — a skill to be filled in along the way, a document, a change
-# to the rules — and those are exactly what the main work starves. A path the spec names
-# that does not appear in `git status` was not touched, and saying so here is what stops
-# the owner from having to remember it.
+# The third is the state of the active task, and this hook is one of its two entrances:
+# `scripts/task.sh check` holds the logic, the `handover` skill calls it by hand, and the
+# hook calls it here so that nobody has to remember to. It reports the declared
+# deliverables the spec names and the working tree does not show as touched — the
+# secondary ones included, a skill to be filled in along the way, a document, a change to
+# the rules, which are exactly what the main work starves — plus a spec edited after it
+# was approved, a status line that no longer matches the approvals, and a template's
+# language switch left at the top of a document.
 #
 # The fourth is bookkeeping debt at its second threshold. hooks/note-bookkeeping.sh
 # queues a nudge for the next prompt; if the turn is ending with the debt still doubled,
@@ -71,43 +74,20 @@ if [ -n "$SID" ] && [ -d "$REPO_ROOT/tmp/work" ]; then
     done
 fi
 
-if [ -n "$ACTIVE" ] && [ -f "$ACTIVE/spec.md" ] && [ -n "$dirty" ]; then
-    # Paths in backticks under the deliverables heading, in either language. A token has
-    # to carry a file extension to count, which is what keeps `tmp/` and a mention of
-    # `git status` in the prose from being read as deliverables.
-    declared="$(awk '
-        /^#+[[:space:]]*(Deliverables|Деливераблы)/ { inside = 1; next }
-        /^#+[[:space:]]/ { inside = 0 }
-        inside { print }
-    ' "$ACTIVE/spec.md" 2>/dev/null | grep -oE '`[A-Za-z0-9_./-]+\.[A-Za-z0-9]+`' |
-        tr -d '`' | sort -u)"
-    changed="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | sed -E 's/^.{3}//')"
-    untouched=""
-    while IFS= read -r path; do
-        [ -n "$path" ] || continue
-        # Two shapes of entry, and the second one is why comparing strings was wrong:
-        # git collapses a wholly untracked directory into one line ending in `/`, so a
-        # brand new `skills/thing/SKILL.md` appears only as `skills/thing/`. Matching
-        # only the exact path would report every new file as untouched forever, which
-        # is the noisiest way a reminder can lose its credibility.
-        touched=""
-        while IFS= read -r entry; do
-            [ -n "$entry" ] || continue
-            case "$entry" in
-                */) case "$path" in "$entry"*) touched=1 ;; esac ;;
-                *)  [ "$entry" = "$path" ] && touched=1 ;;
-            esac
-            [ -n "$touched" ] && break
-        done <<ENTRIES
-$changed
-ENTRIES
-        [ -n "$touched" ] && continue
-        untouched="${untouched:+$untouched, }$path"
-    done <<EOF
-$declared
-EOF
-    [ -n "$untouched" ] && MSG="${MSG:+$MSG
-}The spec of $(basename "$ACTIVE") declares deliverables that the working tree does not show as touched: $untouched. Work is not done while a declared deliverable is untouched."
+TASK_SH="$HERE/../scripts/task.sh"
+if [ -n "$ACTIVE" ] && [ -x "$TASK_SH" ]; then
+    # --quiet prints findings and nothing else, so an empty answer means a clean task.
+    # The open checkboxes of tasks.md are left out on purpose: mid-task an open item is
+    # the normal state, and a warning that fires on every Stop for it is a warning nobody
+    # reads by the third day. The `handover` skill passes --handover and gets them.
+    #
+    # A script that failed rather than reported is not a finding: in Codex a hook that
+    # exits non-zero is discarded along with its verdict, so an error here must not turn
+    # into the appearance of a clean tree. Findings and failures both arrive as text, and
+    # only the text is used.
+    TASK_FINDINGS="$("$TASK_SH" check "$ACTIVE" --quiet 2>/dev/null || true)"
+    [ -n "$TASK_FINDINGS" ] && MSG="${MSG:+$MSG
+}$TASK_FINDINGS"
 fi
 
 if [ -n "$ACTIVE" ] && [ -n "$SID" ]; then

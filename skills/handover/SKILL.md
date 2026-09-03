@@ -51,6 +51,9 @@ Minimum scope, and it is the last step:
 - grep for edit-history residue in code and docs: "used to", "now", "no longer",
   "replaced by";
 - grep for references to `tmp/` from the committed part: there must be none;
+- `scripts/task.sh check <task> --handover`: untouched deliverables, a spec edited after
+  its approval, a status line that no longer matches the approvals, a template's language
+  switch left at the top of a document, checkboxes still open;
 - check every claim in the root documents against the code that implements it, paths,
   thresholds, units, partial-failure and restart behaviour included;
 - every translated copy against its original, by meaning (see the `translate` skill);
@@ -65,8 +68,14 @@ Four steps, none of which the owner should have to ask for.
 
 **Every declared deliverable is checked.** The spec named them, the secondary ones
 included. A deliverable that is untouched means the work is not done, whatever the
-gates say. `hooks/stop-gates.sh` compares the paths in the spec against the working
-tree and warns, but the check belongs here regardless of whether the hook spoke.
+gates say. `scripts/task.sh check` compares the paths in the spec against the working
+tree; `hooks/stop-gates.sh` calls the same check on its own at the end of a turn, but the
+step belongs here regardless of whether the hook spoke.
+
+Where the answer is "not needed after all", that is a change of scope, not a note in the
+report: it goes to the owner and comes back as a re-approved spec. The first two tasks
+under this scheme both closed with declared deliverables untouched and the reason written
+into the result instead.
 
 **The journal is turned into what it was raw material for.** A skill or a document
 being filled in along the way was appended to `journal.md` during the work; this is the
@@ -78,8 +87,11 @@ task's name; the tray item in `tmp/TODO.md` stops being open. Nothing is closed
 silently, and a rejection carries its reason in one line.
 
 **The folder goes to the archive.** `context.md` is rewritten first (see the
-`context-snapshot` skill), then the whole of `tmp/work/<task>/` moves to
-`tmp/archive/<YYYY-MM>/`, plan and journal and probes together. The move is the whole
+`context-snapshot` skill), then the status lines of the spec and the plan are brought to
+their end state: `task.sh check` reads a task in the archive that still says draft as a
+finding, and both archived tasks of the first month went in saying exactly that. Then
+the whole of `tmp/work/<task>/` moves to `tmp/archive/<YYYY-MM>/`, plan and journal
+and probes together. The move is the whole
 bookkeeping: `tmp/work/` holding only live tasks is what makes the layout readable, and
 there is no index to update afterwards.
 

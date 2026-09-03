@@ -6,6 +6,10 @@
 **Date:** <YYYY-MM-DD>
 **From:** <the idea or tray item this grew out of, if any>
 
+The first word of the status is what a check can act on: `draft`, `approved` or `done`,
+and free text after it. `scripts/task.sh approve spec` is what writes that word, so the
+line and `.approvals` have one author between them and cannot drift apart.
+
 ## Why
 
 The problem, not the solution. If the reason is a defect, what it does; if it is a

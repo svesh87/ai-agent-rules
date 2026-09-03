@@ -78,6 +78,16 @@ if command -v jq >/dev/null 2>&1; then
 else
     miss "jq absent, cannot read hook registrations"
 fi
+# stop-gates.sh calls this script and skips its third check when it cannot. Nothing else
+# would say so: a missing execute bit after a clone, a partial checkout, and the check on
+# deliverables and task state is simply gone while every other hook keeps working.
+if [ -x "$repo/scripts/task.sh" ]; then
+    ok "scripts/task.sh executable: the task check at Stop can run"
+elif [ -f "$repo/scripts/task.sh" ]; then
+    miss "scripts/task.sh is not executable: chmod +x it, or the task check at Stop stays silent"
+else
+    miss "scripts/task.sh is missing: the task check at Stop cannot run"
+fi
 if [ -x "$repo/hooks/selftest.sh" ]; then
     if "$repo/hooks/selftest.sh" >/dev/null 2>&1; then ok "hook selftest passes"
     else miss "hook selftest FAILS: run hooks/selftest.sh"; fi

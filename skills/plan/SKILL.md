@@ -18,10 +18,12 @@ saying nothing.
 folder, and everything of it stays inside: `tasks.md`, `journal.md`, `context.md`, and
 `research/` and `artifacts/` for what the work produces.
 
-Take the shape from `templates/work/plan.md`, or `plan.ru.md` for Russian, beside the
-resolved entry point. Do not invent a structure and do not copy one from another
-repository. The template's first line is the language switch between the two copies of
-the template itself: it is not part of the shape and is not copied into the plan.
+`scripts/task.sh new --plan` puts the template in place, in the task's language, without
+the template's first line — that line is the language switch between the two copies of
+the template itself and belongs to neither instance. The script refuses while the spec
+carries no approval in `.approvals`: the plan is the second approval, and one written
+against an unapproved spec has skipped the first. Do not invent a structure and do not
+copy one from another repository.
 
 The plan is written in the language of the chat, not of the repository. The owner is
 the one who reads it, and it never reaches git.
@@ -69,8 +71,14 @@ sends every spec under it in the same wrong direction, neatly and consistently.
 
 ## After it is approved
 
-`tasks.md` is written from the approved plan, not before it: a checklist built ahead of
-the plan gets rewritten the moment the plan changes. Its checkboxes are ticked as the
+`scripts/task.sh approve plan` records the owner's yes as a dated line and stamps the
+status, and only then does `task.sh new --tasks` lay out `tasks.md`: a checklist built
+ahead of the plan gets rewritten the moment the plan changes.
+
+The approvals file is bookkeeping, not a boundary — the agent runs the script, so the
+agent could write the line unasked. What it buys is that the approval exists as a dated
+record rather than as somebody's memory of the chat, and that the status line has a
+single author and cannot drift away from it. Its checkboxes are ticked as the
 work goes, and they record progress only — reasons, measurements and traps go into
 `journal.md`.
 

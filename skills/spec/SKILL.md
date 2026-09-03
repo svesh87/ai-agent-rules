@@ -15,22 +15,36 @@ work.
 
 ## Where it goes
 
-`tmp/work/<YYYY-MM-DD>-<slug>/spec.md`. The date comes from `date '+%Y-%m-%d'`, the
-slug is two or three words that read as a name in `ls`. The folder is the task; every
-other file of it lands beside this one.
+`tmp/work/<YYYY-MM-DD>-<slug>/spec.md`. The slug is two or three words that read as a
+name in `ls`. The folder is the task; every other file of it lands beside this one.
 
-Take the shape from `templates/work/spec.md`, or `spec.ru.md` for Russian. Find the
-templates by resolving the entry point, `readlink -f ~/.claude/CLAUDE.md` or
-`readlink -f ~/.codex/AGENTS.md`, and looking in `templates/` beside it.
+`scripts/task.sh new <slug> [--lang ru|en]` lays it out: the folder under today's date,
+`spec.md` and `journal.md` from the templates, and nothing else yet. Find the script by
+resolving the entry point, `readlink -f ~/.claude/CLAUDE.md` or
+`readlink -f ~/.codex/AGENTS.md`, and looking in `scripts/` beside it; the templates are
+in `templates/work/` there, for reading rather than copying by hand.
 
-The template's first line is the language switch between the two copies of the template
-itself. It is not part of the shape and is not copied: a task has one language, and an
-instance carrying that line points at a template rather than at a translation of itself.
-An agent did copy it, adjusting the relative path, which is how this sentence came to be
-here.
+It strips the template's first line, and that is not a nicety. The line is the language
+switch between the two copies of the template itself, so an instance carrying it points
+at a template rather than at a translation of itself. An agent copied it into all four
+files of a real task, adjusting the relative path as it went.
 
 The spec is written in the language of the chat. The owner is the one who approves it
 and it never reaches git.
+
+## Measure before writing it
+
+Where the unknown is what to build, a spec written first is the right document. Where
+the unknown is how something behaves — a runtime, a payload, a tool's contract, a
+production system — a spec written first is a guess, and two approvals over a guess turn
+a cheap probe into a documented commitment. That is not hypothetical: a task in this
+repository wrote its spec from a schema read out of a binary, and one live probe by the
+owner overturned the conclusion the whole plan rested on.
+
+So the measurement comes first and goes into `journal.md`, which the scaffolding creates
+alongside the spec for exactly this. Then the spec, written against what was measured
+rather than against what seemed likely. Sometimes the measurement shows there is no task,
+and then no spec is written at all.
 
 ## What goes in it
 
@@ -75,5 +89,16 @@ into a task.
 
 ## After it is approved
 
-Write `plan.md` with the `plan` skill, then `tasks.md` from the approved plan. Not
-before: a task list built ahead of the plan gets rewritten the moment the plan changes.
+Record the approval where a check can see it: `scripts/task.sh approve spec` writes a
+dated line into `.approvals` and stamps the status line. Until that line exists the
+script refuses to create `plan.md`, because a plan written against an unapproved spec is
+the first of the two approvals quietly skipped.
+
+Then write `plan.md` with the `plan` skill — `task.sh new --plan` puts the template in
+place — and `tasks.md` from the approved plan, not before it.
+
+**An approved spec is not edited to match what was built.** Where the work turns out
+smaller, larger or different, the new scope goes to the owner in chat and comes back as
+a re-approval: `task.sh approve spec` again, with the reason in the journal. A spec
+quietly brought into line with the code afterwards is a report wearing a spec's name,
+and `task.sh check` reports it by comparing the file's mtime against its approval.

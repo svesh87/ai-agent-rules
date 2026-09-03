@@ -31,6 +31,7 @@ hooks still fire.
 | `hooks/` | ten hooks: seven enforce or remind on an observable trigger, three carry the states a skill needs to hear about |
 | `skills/` | eleven skills installed globally — spec, plan, handover, context-snapshot, idea, audit, tmp-tidy, translate, rules-edit, new-repo, pass-secrets — plus `rules-install`, which stays here |
 | `registry/` | hook registration for each tool, merged into place by `install.sh` |
+| `scripts/task.sh` | the task lifecycle a script can hold: lay one out, record an approval, check the states a check can judge |
 | `scripts/doctor.sh` | what is installed and what is missing. Changes nothing |
 | `scripts/uninstall.sh` | takes it back off, one group at a time, asking before each |
 | `scripts/journal-from-transcript.sh` | a journal skeleton out of a session transcript, for after a context was lost |

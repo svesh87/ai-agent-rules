@@ -988,5 +988,126 @@ else
     FAIL=$((FAIL + 1)); echo "FAIL  PreCompact did not name context-snapshot"
 fi
 
+echo "== the task script holds the sequence, the approvals and the states a check can judge"
+# The scheme asked for all of this in prose and got it in neither of the first two tasks
+# written under it. These cases are the part that no longer depends on anyone remembering.
+TSH="$HERE/../scripts/task.sh"
+TS_TASK="$(cd "$R" && "$TSH" new tasksh --lang ru 2>/dev/null | head -1)"
+
+if [ -f "$TS_TASK/spec.md" ] && [ -f "$TS_TASK/journal.md" ] && [ ! -f "$TS_TASK/plan.md" ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  new did not lay out a task as spec plus journal alone"
+fi
+
+# The line that reached four files of a real task before anyone noticed.
+if head -1 "$TS_TASK/spec.md" 2>/dev/null | grep -qE '^\*(\[English\]|English )'; then
+    FAIL=$((FAIL + 1)); echo "FAIL  the template's language switch was copied into the instance"
+else
+    PASS=$((PASS + 1))
+fi
+
+if "$TSH" new --plan "$TS_TASK" >/dev/null 2>&1 || [ -f "$TS_TASK/plan.md" ]; then
+    FAIL=$((FAIL + 1)); echo "FAIL  a plan was created against a spec nobody had approved"
+else
+    PASS=$((PASS + 1))
+fi
+
+if [ -z "$("$TSH" check "$TS_TASK" --quiet 2>/dev/null)" ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  a freshly created task was not clean"
+fi
+
+"$TSH" approve spec "$TS_TASK" >/dev/null 2>&1
+if [ -f "$TS_TASK/.approvals" ] && "$TSH" new --plan "$TS_TASK" >/dev/null 2>&1 &&
+   [ -f "$TS_TASK/plan.md" ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  an approved spec did not open the way to the plan"
+fi
+
+if grep -qE '^\*\*Статус:\*\*[[:space:]]*одобрено' "$TS_TASK/spec.md"; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  approve left the status line saying draft"
+fi
+
+if "$TSH" new --tasks "$TS_TASK" >/dev/null 2>&1 || [ -f "$TS_TASK/tasks.md" ]; then
+    FAIL=$((FAIL + 1)); echo "FAIL  a checklist was built against a plan nobody had approved"
+else
+    PASS=$((PASS + 1))
+fi
+
+# The violation both archived tasks committed: the spec follows the code instead of
+# leading it. mtime is the only evidence there is, so the case moves it by hand rather
+# than sleeping a second inside a selftest.
+touch -d '+1 hour' "$TS_TASK/spec.md"
+if "$TSH" check "$TS_TASK" --quiet 2>/dev/null | grep -q 'edited after it was approved'; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  a spec edited after its approval passed unnoticed"
+fi
+"$TSH" approve spec "$TS_TASK" >/dev/null 2>&1
+if "$TSH" check "$TS_TASK" --quiet 2>/dev/null | grep -q 'edited after it was approved'; then
+    FAIL=$((FAIL + 1)); echo "FAIL  a re-approval did not clear the drift finding"
+else
+    PASS=$((PASS + 1))
+fi
+
+# Open checkboxes are the normal state mid-task and a finding only at handover.
+printf '# Задачи\n\n- [x] сделано\n- [ ] нет\n' > "$TS_TASK/tasks.md"
+if "$TSH" check "$TS_TASK" --quiet 2>/dev/null | grep -q 'still open'; then
+    FAIL=$((FAIL + 1)); echo "FAIL  an open checkbox was reported outside handover"
+else
+    PASS=$((PASS + 1))
+fi
+if "$TSH" check "$TS_TASK" --quiet --handover 2>/dev/null | grep -q '1 item(s) still open'; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  handover did not name the open checkbox"
+fi
+
+# A closed thing carries its end state. Both archived tasks of 2026-09 went in saying
+# draft, which is the case for this one.
+TS_ARCHIVE="$R/tmp/archive/2026-09/2026-09-03-tasksh"
+mkdir -p "$TS_ARCHIVE"
+printf '# probe\n\n**Статус:** черновик, ждёт одобрения владельца\n' > "$TS_ARCHIVE/spec.md"
+if "$TSH" check "$TS_ARCHIVE" --quiet 2>/dev/null | grep -q "archived task says 'draft'"; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  an archived task with a draft status was not named"
+fi
+
+# A task with no spec at all is the owner's call — they ask for a plan alone and that
+# happens — but it is the shape that loses the deliverable and acceptance checks, so
+# handover says so rather than reporting a clean bill.
+TS_PLANONLY="$R/tmp/work/2026-09-03-planonly"
+mkdir -p "$TS_PLANONLY"
+if "$TSH" new --plan "$TS_PLANONLY" >/dev/null 2>&1 && [ -f "$TS_PLANONLY/plan.md" ]; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  a plan-only task was refused its plan"
+fi
+if "$TSH" check "$TS_PLANONLY" --quiet --handover 2>/dev/null | grep -q 'no spec.md'; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  a task with no spec passed handover as if it had one"
+fi
+if [ -n "$("$TSH" check "$TS_PLANONLY" --quiet 2>/dev/null)" ]; then
+    FAIL=$((FAIL + 1)); echo "FAIL  the missing spec was reported outside handover"
+else
+    PASS=$((PASS + 1))
+fi
+rm -rf "$TS_PLANONLY"
+
+printf '*[English](../../../templates/work/tasks.md) · Русский*\n\n# Задачи\n' > "$TS_TASK/tasks.md"
+if "$TSH" check "$TS_TASK" --quiet 2>/dev/null | grep -q "language switch"; then
+    PASS=$((PASS + 1))
+else
+    FAIL=$((FAIL + 1)); echo "FAIL  the template's language switch inside a task went unnoticed"
+fi
+rm -rf "$TS_TASK" "$TS_ARCHIVE"
+
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -25,6 +25,35 @@ while a short session of 891 lines stayed at 0-7% throughout. The breakdown star
 before the first context compaction, so the cause is dilution of an instruction sitting
 at the top of a growing context, not compaction losing it.
 
+## What the task scheme actually enforces
+
+The scheme of genres, two approvals and a journal was written as prose, and prose is
+executed at the agent's discretion. The first two tasks written under it show what that
+came to: one skipped the first approval and said so in its own spec, the other edited its
+spec after the code was committed and moved half of its declared deliverables into a
+section called "already delivered". Both went to the archive still carrying the status
+line "draft, awaiting the owner's approval".
+
+What runs without anybody remembering it, on the other hand:
+
+| Mechanism | Where | What it catches |
+| --- | --- | --- |
+| bookkeeping debt | `hooks/note-bookkeeping.sh` | edits since `journal.md` was written, at 40 and 80 |
+| staged creation | `scripts/task.sh new` | a plan before the spec is approved, a checklist before the plan is |
+| approval as a record | `scripts/task.sh approve` | the status line and `.approvals` cannot disagree, because one author writes both |
+| the state of a task | `scripts/task.sh check` | untouched deliverables, a spec edited after approval, a status that no longer matches, a template's language switch left in an instance, and at handover: checkboxes still open, a task with no spec at all |
+
+`hooks/stop-gates.sh` is one of two entrances to the last of those; the `handover` skill
+is the other, and it passes `--handover` to add the checkboxes, which mid-task are the
+normal state rather than a finding.
+
+`.approvals` is bookkeeping and not a boundary. The agent runs the script, so the agent
+can write the line unasked — the same reason a terminal command minting a grant was
+rejected for Codex in favour of the owner's own chat message. What the file buys is that
+an approval exists as a dated record instead of somebody's memory of the conversation,
+and that a check can compare the spec's mtime against it. Against an agent that lies it
+buys nothing, and it is not meant to.
+
 ## Claude Code and Codex, surface by surface
 
 | | Claude Code 2.1.216 | Codex 0.144.1 |
